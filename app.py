@@ -157,7 +157,20 @@ app.layout = dbc.Container(fluid=True, children=[
             dbc.Row(id='team-stat-cards', justify="center", className="p-4"),
             dbc.Row([dbc.Col(dbc.Card(dcc.Graph(id='points-composition-team')), width=12, lg=8, className="mx-auto p-4")], )
         ])
-    ])
+    ]),
+    
+    ### ASSINATURA ADICIONADA AQUI ###
+    html.Div(
+        "Made by Caviar",
+        style={
+            'position': 'fixed',
+            'bottom': '10px',
+            'right': '15px',
+            'fontSize': '12px',
+            'color': 'grey',
+            'zIndex': '9999'
+        }
+    )
 ])
 
 # --- 5. Callbacks ---
