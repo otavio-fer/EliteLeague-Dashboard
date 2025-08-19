@@ -1,4 +1,4 @@
-# app.py 
+# app.py (Versão com Correção Final de Erros de Callback e Tabela)
 
 import pandas as pd
 import plotly.express as px
@@ -21,149 +21,227 @@ try:
 
     for df in dfs.values():
         df.columns = df.columns.astype(str).str.strip()
-
+        
     dfs["analise_jogadores"].rename(columns={'# RPG': 'RPG', '#APG': 'APG'}, inplace=True)
     dfs["analise_equipes"].rename(columns={'# RPG': 'RPG', '#APG': 'APG'}, inplace=True)
+    
+    dfs["analise_jogadores"]["ROUB_PG"] = (dfs["analise_jogadores"]["ROUB"] / dfs["analise_jogadores"]["JOGOS"]).round(2)
+    dfs["analise_jogadores"]["TOCOS_PG"] = (dfs["analise_jogadores"]["TOCOS"] / dfs["analise_jogadores"]["JOGOS"]).round(2)
+    dfs["analise_jogadores"]["EFI_PG"] = (dfs["analise_jogadores"]["EFICIÊNCIA"] / dfs["analise_jogadores"]["JOGOS"]).round(2)
+    
+    dfs["analise_equipes"] = dfs["analise_equipes"][dfs["analise_equipes"]["EQUIPE"] != 'TOTAIS'].copy()
+    dfs["ranking_equipes"] = dfs["ranking_equipes"][dfs["ranking_equipes"]["EQUIPE"] != 'TOTAIS'].copy()
+    
+    min_jogos = 2
+    jogadores_elegiveis = dfs["analise_jogadores"][dfs["analise_jogadores"]['JOGOS'] >= min_jogos]['APELIDO']
+    dfs["analise_jogadores"] = dfs["analise_jogadores"][dfs["analise_jogadores"]['APELIDO'].isin(jogadores_elegiveis)].copy()
+    dfs["ranking_jogadores"] = dfs["ranking_jogadores"][dfs["ranking_jogadores"]['APELIDO'].isin(jogadores_elegiveis)].copy()
 
 except Exception as e:
     print(f"ERRO AO LER O ARQUIVO EXCEL: {e}", file=sys.stderr)
     sys.exit()
 
-# --- NOVO: Dicionário de Cores dos Times ATUALIZADO ---
+# Dicionário de Cores e Nomes de Colunas
 cores_times = {
-    "DIREITO USP RP": "#FFD700",  # Dourado
-    "MED USP RP": "#87CEEB",      # Azul Claro
-    "ODONTO USP RP": "#880e4f",   # Vinho
-    "FILÔ USP RP": "#212121",     # Preto/Cinza
-    "LUS USP RP": "#00FFFF",      # Ciano
-    "MED UNAERP": "#00008B",      # Azul Escuro
-    "MED BARÃO": "#006400",       # Verde Escuro
-    "TOTAIS" : "#212121",         #Preto/Cinza
+    "DIREITO USP RP": "#FFD700", "MED USP RP": "#87CEEB", "ODONTO USP RP": "#880e4f",
+    "FILÔ USP RP": "#424242", "LUS USP RP": "#00FFFF", "MED UNAERP": "#00008B", "MED BARÃO": "#006400",
 }
-cor_padrao = "#66bb6a" # Verde para a EDUCA USP RP e outros times sem cor definida
+cor_padrao = "#66bb6a"
+col_j_nome, col_j_equipe = "APELIDO", "EQUIPE"
+col_e_nome = "EQUIPE"
+logo_ext = ".png"
 
-# --- 2. Função para criar Gráficos de Ranking ---
-def criar_grafico_ranking(df, coluna_valor, coluna_nome, titulo, cor_barra):
-    df_agrupado = df.groupby(coluna_nome, as_index=False)[coluna_valor].sum()
-    df_agrupado[coluna_valor] = pd.to_numeric(df_agrupado[coluna_valor], errors='coerce')
-    df_agrupado.dropna(subset=[coluna_valor, coluna_nome], inplace=True)
-    top_10 = df_agrupado.nlargest(10, coluna_valor)
-
-    fig = px.bar(top_10, x=coluna_valor, y=coluna_nome, orientation='h', text_auto=True, template="plotly_white")
-    fig.update_layout(
-        title_text=titulo, title_x=0.5, yaxis_title=None, xaxis_title=None,
-        yaxis={'categoryorder':'total ascending'}, uniformtext_minsize=8, uniformtext_mode='hide',
-        margin=dict(l=20, r=20, t=40, b=20)
-    )
-    fig.update_traces(marker_color=cor_barra, textposition='outside', textfont_size=12)
-    return fig
-
-# --- 3. Nomes das colunas e criação dos gráficos de ranking ---
-col_jogador_pontos = "PONTOS"
-col_jogador_rebotes = "TOTAL REB"
-col_jogador_assistencias = "AST"
-col_jogador_roubos = "ROUB"
-col_jogador_nome = "APELIDO"
-col_equipe_pontos_marcados = "PONTOS MARCADOS"
-col_equipe_pontos_sofridos = "PONTOS SOFRIDOS"
-col_equipe_rebotes = "TOTAL REB"
-col_equipe_nome = "EQUIPE"
-
-cores_ranking = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
-
-fig_cestinhas = criar_grafico_ranking(dfs["ranking_jogadores"], col_jogador_pontos, col_jogador_nome, 'Top 10 Cestinhas (Total)', cores_ranking[0])
-fig_rebotes = criar_grafico_ranking(dfs["ranking_jogadores"], col_jogador_rebotes, col_jogador_nome, 'Top 10 Reboteiros (Total)', cores_ranking[1])
-fig_assistencias = criar_grafico_ranking(dfs["ranking_jogadores"], col_jogador_assistencias, col_jogador_nome, 'Top 10 em Assistências (Total)', cores_ranking[2])
-fig_roubos = criar_grafico_ranking(dfs["ranking_jogadores"], col_jogador_roubos, col_jogador_nome, 'Top 10 em Roubos de Bola (Total)', cores_ranking[3])
-
-fig_equipes_pontos = criar_grafico_ranking(dfs["ranking_equipes"], col_equipe_pontos_marcados, col_equipe_nome, 'Equipes com Mais Pontos Marcados', cores_ranking[0])
-fig_equipes_defesa = criar_grafico_ranking(dfs["ranking_equipes"], col_equipe_pontos_sofridos, col_equipe_nome, 'Equipes com Menos Pontos Sofridos', cores_ranking[1])
-fig_equipes_rebotes = criar_grafico_ranking(dfs["ranking_equipes"], col_equipe_rebotes, col_equipe_nome, 'Equipes com Mais Rebotes', cores_ranking[2])
-
-# Lógica para encontrar logos das equipes líderes
-df_equipes_total = dfs["ranking_equipes"].groupby(col_equipe_nome).sum(numeric_only=True).reset_index()
-
-logo_ext = ".png" # Assumindo .png, mude se for .jpg para alguns
-top_ataque_logo = f'/assets/{df_equipes_total.loc[df_equipes_total[col_equipe_pontos_marcados].idxmax()][col_equipe_nome]}{logo_ext}'
-top_defesa_logo = f'/assets/{df_equipes_total.loc[df_equipes_total[col_equipe_pontos_sofridos].idxmin()][col_equipe_nome]}{logo_ext}'
-top_rebote_logo = f'/assets/{df_equipes_total.loc[df_equipes_total[col_equipe_rebotes].idxmax()][col_equipe_nome]}{logo_ext}'
-
-
-# --- 4. Inicialização do App com Tema Bootstrap ---
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX], assets_folder='assets')
+# --- 2. Inicialização do App ---
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.CYBORG, dbc.icons.BOOTSTRAP], assets_folder='assets')
 server = app.server
 
-# --- 5. Layout do Dashboard com Bootstrap ---
-app.layout = dbc.Container(fluid=True, style={'backgroundColor': '#f8f9fa'}, children=[
-    dbc.Row(dbc.Col(html.H1("Dashboard de Estatísticas - Elite League", className="text-center my-4"), width=12)),
+# --- 3. Função para Criar Visualização de Ranking (Pódio + Tabela) ---
+def criar_visual_ranking(df, stat_col, name_col, title, unit="", is_total=True, team_col=None):
+    if is_total:
+        agg_dict = {stat_col: 'sum'}
+        if team_col: agg_dict[team_col] = 'first'
+        df_processed = df.groupby(name_col, as_index=False).agg(agg_dict)
+    else:
+        df_processed = df
+    
+    top_10 = df_processed.nlargest(10, stat_col).reset_index(drop=True)
+
+    podium_cards, table = [], None
+    medals = ["🥇", "🥈", "🥉"]
+    
+    if len(top_10) > 0:
+        cols = {}
+        for i in range(min(3, len(top_10))):
+            player_or_team = top_10.iloc[i]
+            team_name = player_or_team.get(team_col, player_or_team.get(name_col))
+            logo_src = f"/assets/{team_name}{logo_ext}"
+            
+            card_style = {"height": "100%"}
+            card_class = "mb-3"
+            if i == 0:
+                card_style.update({'transform': 'translateY(-25px)', 'zIndex': 2, 'boxShadow': '0 0 25px rgba(255, 215, 0, 0.7)'})
+                card_class += " border-warning border-3"
+            
+            cols[str(i+1)] = dbc.Col(dbc.Card([dbc.CardBody([
+                    html.H4(f"{medals[i]} {i+1}º Lugar", className="card-title text-center"),
+                    html.Img(src=logo_src, height="80px", className="mx-auto d-block my-2", alt=team_name),
+                    html.H5(player_or_team[name_col], className="text-center fw-bold"),
+                    html.P(f"{player_or_team[stat_col]:.1f} {unit}", className="text-center fs-4")
+                ])], style=card_style, className=card_class), lg=4, md=6, sm=12)
+        
+        podium_cards.extend([cols.get("2"), cols.get("1"), cols.get("3")])
+
+    if len(top_10) > 3:
+        table_rows = [html.Tr([html.Th(f"{i+1}º"), html.Td(top_10.iloc[i][name_col]), html.Td(f"{top_10.iloc[i][stat_col]:.1f}")]) for i in range(3, len(top_10))]
+        table_header_name = "Atleta" if team_col else "Equipe"
+        ### CORREÇÃO AQUI: REMOVIDO 'dark=True' DA TABELA ###
+        table = dbc.Row(dbc.Col(dbc.Table([html.Thead(html.Tr([html.Th("#"), html.Th(table_header_name), html.Th(unit)])), html.Tbody(table_rows)], striped=True, bordered=True, hover=True, size="sm"), width=12, lg={"size": 8, "offset": 2}), className="mt-4")
+
+    return [html.H4(title, className="text-center mt-5 mb-4"), dbc.Row([c for c in podium_cards if c], justify="center"), table]
+
+# --- 4. Layout do Dashboard ---
+header = html.Div(
+    dbc.Row([
+        dbc.Col(html.Img(src="/assets/LOGO.png", height="70px", className="ms-3"), width="auto"),
+        dbc.Col(html.H2("Elite League Dashboard", className="fw-bolder my-auto ms-3"), width=True)
+    ], align="center", className="py-2 text-white"),
+    style={"background": "linear-gradient(90deg, #0d1b2a 0%, #173d61 100%)", "boxShadow": "0 4px 8px 0 rgba(0, 0, 0, 0.4)"},
+    className="mb-4"
+)
+
+opcoes_ranking_jogadores = [
+    {'label': 'Média de Pontos (PPG)', 'value': 'j_media_pontos'}, {'label': 'Média de Rebotes (RPG)', 'value': 'j_media_rebotes'},
+    {'label': 'Média de Assistências (APG)', 'value': 'j_media_assistencias'}, {'label': 'Média de Roubos de Bola (SPG)', 'value': 'j_media_roubos'},
+    {'label': 'Média de Tocos (BPG)', 'value': 'j_media_tocos'}, {'label': 'Eficiência por Jogo', 'value': 'j_media_eficiencia'},
+    {'label': 'Total de Pontos', 'value': 'j_total_pontos'}, {'label': 'Total de Rebotes', 'value': 'j_total_rebotes'},
+    {'label': 'Total de Assistências', 'value': 'j_total_assistencias'},
+]
+opcoes_ranking_equipes = [
+    {'label': 'Média de Pontos Marcados (PPG)', 'value': 'e_media_pontos'}, {'label': 'Média de Rebotes (RPG)', 'value': 'e_media_rebotes'},
+    {'label': 'Média de Assistências (APG)', 'value': 'e_media_assistencias'}, {'label': 'Total de Pontos Marcados', 'value': 'e_total_pontos'},
+    {'label': 'Total de Rebotes', 'value': 'e_total_rebotes'}, {'label': 'Total de Assistências', 'value': 'e_total_assistencias'},
+]
+
+app.layout = dbc.Container(fluid=True, children=[
+    header,
     dbc.Tabs(id="tabs-principal", active_tab='tab-ranking-jogadores', children=[
-        
         dbc.Tab(label='🏆 Ranking de Jogadores', tab_id='tab-ranking-jogadores', children=[
-            dbc.Row(className="p-4", children=[
-                dbc.Col(dbc.Card([dbc.CardBody(dcc.Graph(figure=fig_cestinhas))]), md=6, className="mb-4"),
-                dbc.Col(dbc.Card([dbc.CardBody(dcc.Graph(figure=fig_rebotes))]), md=6, className="mb-4"),
-                dbc.Col(dbc.Card([dbc.CardBody(dcc.Graph(figure=fig_assistencias))]), md=6, className="mb-4"),
-                dbc.Col(dbc.Card([dbc.CardBody(dcc.Graph(figure=fig_roubos))]), md=6, className="mb-4"),
-            ])]),
-        
+            dbc.Row(dbc.Col(dcc.Dropdown(id='seletor-ranking-jogadores', options=opcoes_ranking_jogadores, value='j_media_pontos', clearable=False), width=12, lg=6, className="mx-auto my-4")),
+            html.Div(id='ranking-display-jogadores')
+        ]),
         dbc.Tab(label='🏆 Ranking de Equipes', tab_id='tab-ranking-equipes', children=[
-            dbc.Row(className="p-4", children=[
-                dbc.Col(dbc.Card([html.H4("Melhor Ataque", className="card-title text-center mt-3"), html.Img(src=top_ataque_logo, height="80px", className="mx-auto d-block"), dbc.CardBody(dcc.Graph(figure=fig_equipes_pontos))]), md=4, className="mb-4"),
-                dbc.Col(dbc.Card([html.H4("Melhor Defesa", className="card-title text-center mt-3"), html.Img(src=top_defesa_logo, height="80px", className="mx-auto d-block"), dbc.CardBody(dcc.Graph(figure=fig_equipes_defesa))]), md=4, className="mb-4"),
-                dbc.Col(dbc.Card([html.H4("Mais Rebotes", className="card-title text-center mt-3"), html.Img(src=top_rebote_logo, height="80px", className="mx-auto d-block"), dbc.CardBody(dcc.Graph(figure=fig_equipes_rebotes))]), md=4, className="mb-4"),
-            ])]),
-
+            dbc.Row(dbc.Col(dcc.Dropdown(id='seletor-ranking-equipes', options=opcoes_ranking_equipes, value='e_media_pontos', clearable=False), width=12, lg=6, className="mx-auto my-4")),
+            html.Div(id='ranking-display-equipes')
+        ]),
         dbc.Tab(label='🔎 Análise Individual', tab_id='tab-jogadores', children=[
-            dbc.Row(dbc.Col(dbc.Card([dbc.CardHeader("Selecione o Atleta"), dbc.CardBody(dcc.Dropdown(id='player-dropdown', options=[{'label': apelido, 'value': apelido} for apelido in sorted(dfs["analise_jogadores"]['APELIDO'].unique())], value=sorted(dfs["analise_jogadores"]['APELIDO'].unique())[0]))]), width={"size": 6, "offset": 3}, className="my-4")),
-            dbc.Row([dbc.Col(dbc.Card(dcc.Graph(id='stats-graph-player')), md=6), dbc.Col(dbc.Card(dcc.Graph(id='shooting-graph-player')), md=6)], className="p-4")]),
-
+            dbc.Row(dbc.Col(dbc.Card([dbc.CardBody(dcc.Dropdown(id='player-dropdown', options=[{'label': apelido, 'value': apelido} for apelido in sorted(dfs["analise_jogadores"][col_j_nome].unique())], value=sorted(dfs["analise_jogadores"][col_j_nome].unique())[0] if not dfs["analise_jogadores"].empty else None))]), width={"size": 10, "offset": 1}, lg={"size": 6, "offset": 3}, className="my-4")),
+            dbc.Row(id='player-stat-cards', justify="center", className="p-4"),
+            dbc.Row([dbc.Col(dbc.Card([dbc.CardHeader("Aproveitamento de Arremessos (%)", className="fw-bold"), dbc.CardBody(id='shooting-progress-bars')]), width=12, lg=8, className="mx-auto p-4")], )
+        ]),
         dbc.Tab(label='🔎 Análise por Equipe', tab_id='tab-equipes', children=[
-             dbc.Row([
-                dbc.Col(dbc.Card([dbc.CardHeader("Selecione a Equipe"), dbc.CardBody(dcc.Dropdown(id='team-dropdown', options=[{'label': equipe, 'value': equipe} for equipe in sorted(dfs["analise_equipes"]['EQUIPE'].unique())], value=sorted(dfs["analise_equipes"]['EQUIPE'].unique())[0]))]), md=8),
-                dbc.Col(html.Img(id='team-logo-display', height="150px"), md=4, className="text-center align-self-center")
-             ], className="my-4", justify="center", align="center"),
-            dbc.Row([dbc.Col(dbc.Card(dcc.Graph(id='stats-graph-team')), md=6), dbc.Col(dbc.Card(dcc.Graph(id='points-composition-team')), md=6)], className="p-4")
+            dbc.Row([
+                dbc.Col(dbc.Card([dbc.CardBody(dcc.Dropdown(id='team-dropdown', options=[{'label': equipe, 'value': equipe} for equipe in sorted(dfs["analise_equipes"][col_e_nome].unique())], value=sorted(dfs["analise_equipes"][col_e_nome].unique())[0]))]), lg=7, sm=12),
+                dbc.Col(html.Img(id='team-logo-display', height="150px"), lg=5, sm=12, className="text-center align-self-center mt-3 mt-lg-0")
+            ], className="my-4 px-4", justify="center", align="center"),
+            dbc.Row(id='team-stat-cards', justify="center", className="p-4"),
+            dbc.Row([dbc.Col(dbc.Card(dcc.Graph(id='points-composition-team')), width=12, lg=8, className="mx-auto p-4")], )
         ])
     ])
 ])
 
-# --- 6. Callbacks ---
-@app.callback(
-    [Output('stats-graph-player', 'figure'), Output('shooting-graph-player', 'figure')],
-    [Input('player-dropdown', 'value')])
-def update_player_graphs(selected_player):
-    if not selected_player: return go.Figure(), go.Figure()
-    player_data = dfs["analise_jogadores"][dfs["analise_jogadores"]['APELIDO'] == selected_player].iloc[0]
-    stats_player = {'PPG': player_data['PPG'], 'RPG': player_data['RPG'], 'APG': player_data['APG']}
-    fig_stats_player = px.bar(x=list(stats_player.keys()), y=list(stats_player.values()), title=f"Médias por Jogo - {selected_player}", text_auto=True, template="plotly_white")
-    fig_stats_player.update_traces(marker_color='#5c6bc0')
-    shooting_player = {'%FG': player_data['%FG']*100, '%2P': player_data['%2P']*100, '%3P': player_data['%3P']*100}
-    fig_shooting_player = px.bar(x=list(shooting_player.keys()), y=list(shooting_player.values()), title=f"Aproveitamento (%) - {selected_player}", text_auto=".2f", template="plotly_white")
-    fig_shooting_player.update_layout(yaxis_range=[0,100])
-    fig_shooting_player.update_traces(marker_color='#42a5f5')
-    return fig_stats_player, fig_shooting_player
+# --- 5. Callbacks ---
+@app.callback(Output('ranking-display-jogadores', 'children'), Input('seletor-ranking-jogadores', 'value'))
+def update_player_ranking_display(selected_stat):
+    df_media, df_total = dfs["analise_jogadores"], dfs["ranking_jogadores"]
+    ### CORREÇÃO AQUI: ORDEM DOS ARGUMENTOS AJUSTADA ###
+    map_stats = {
+        'j_media_pontos':       (df_media, 'PPG', col_j_nome, "Média de Pontos", "PPG", False, col_j_equipe),
+        'j_media_rebotes':      (df_media, 'RPG', col_j_nome, "Média de Rebotes", "RPG", False, col_j_equipe),
+        'j_media_assistencias': (df_media, 'APG', col_j_nome, "Média de Assistências", "APG", False, col_j_equipe),
+        'j_media_roubos':       (df_media, 'ROUB_PG', col_j_nome, "Média de Roubos de Bola", "SPG", False, col_j_equipe),
+        'j_media_tocos':        (df_media, 'TOCOS_PG', col_j_nome, "Média de Tocos", "BPG", False, col_j_equipe),
+        'j_media_eficiencia':   (df_media, 'EFI_PG', col_j_nome, "Eficiência por Jogo", "EFI", False, col_j_equipe),
+        'j_total_pontos':       (df_total, 'PONTOS', col_j_nome, "Total de Pontos", "Pontos", True, col_j_equipe),
+        'j_total_rebotes':      (df_total, 'TOTAL REB', col_j_nome, "Total de Rebotes", "Rebotes", True, col_j_equipe),
+        'j_total_assistencias': (df_total, 'AST', col_j_nome, "Total de Assistências", "AST", True, col_j_equipe),
+    }
+    params = map_stats.get(selected_stat)
+    return criar_visual_ranking(*params) if params else "Selecione uma estatística."
 
-@app.callback(
-    [Output('stats-graph-team', 'figure'), Output('points-composition-team', 'figure'), Output('team-logo-display', 'src')],
-    [Input('team-dropdown', 'value')])
+@app.callback(Output('ranking-display-equipes', 'children'), Input('seletor-ranking-equipes', 'value'))
+def update_team_ranking_display(selected_stat):
+    df_media, df_total = dfs["analise_equipes"], dfs["ranking_equipes"]
+    ### CORREÇÃO AQUI: ORDEM DOS ARGUMENTOS AJUSTADA ###
+    map_stats = {
+        'e_media_pontos':       (df_media, 'PPG', col_e_nome, "Média de Pontos Marcados", "PPG", False),
+        'e_media_rebotes':      (df_media, 'RPG', col_e_nome, "Média de Rebotes", "RPG", False),
+        'e_media_assistencias': (df_media, 'APG', col_e_nome, "Média de Assistências", "APG", False),
+        'e_total_pontos':       (df_total, 'PONTOS MARCADOS', col_e_nome, "Total de Pontos Marcados", "Pontos", True),
+        'e_total_rebotes':      (df_total, 'TOTAL REB', col_e_nome, "Total de Rebotes", "Rebotes", True),
+        'e_total_assistencias': (df_total, 'AST', col_e_nome, "Total de Assistências", "AST", True),
+    }
+    params = map_stats.get(selected_stat)
+    return criar_visual_ranking(*params) if params else "Selecione uma estatística."
+
+@app.callback(Output('player-stat-cards', 'children'), Output('shooting-progress-bars', 'children'), Input('player-dropdown', 'value'))
+def update_player_analysis(selected_player):
+    if not selected_player: return [], []
+    player_data = dfs["analise_jogadores"][dfs["analise_jogadores"][col_j_nome] == selected_player].iloc[0]
+    
+    card_style = {'borderTop': '5px solid', 'minHeight': '150px'}
+    stats_to_show = {
+        "PPG": (player_data['PPG'], "bi-dribbble", "#ff7f0e"), "RPG": (player_data['RPG'], "bi-arrow-down-up", "#1f77b4"),
+        "APG": (player_data['APG'], "bi-people-fill", "#2ca02c"), "SPG": (player_data['ROUB_PG'], "bi-person-bounding-box", "#d62728"),
+        "BPG": (player_data['TOCOS_PG'], "bi-hand-index-thumb-fill", "#9467bd"), "+/-": (player_data['PLUS/MINUS'], "bi-graph-up-arrow", "#8c564b"), "EFI": (player_data['EFI_PG'], "bi-star-fill", "#e377c2")
+    }
+    stat_cards = [dbc.Col(dbc.Card(dbc.CardBody([
+                    html.Div([
+                        html.I(className=f"{icon} fs-1", style={'color': color}),
+                        html.H2(f"{value:.1f}", className="fw-bolder my-2"),
+                        html.P(stat, className="text-muted mb-0 fw-bold")
+                    ])
+                ], className="text-center"), style={**card_style, 'borderTopColor': color}), 
+                lg=3, md=4, sm=6, className="mb-4") for stat, (value, icon, color) in stats_to_show.items()]
+
+    shooting_stats = {"FG%": player_data['%FG']*100, "2P%": player_data['%2P']*100, "3P%": player_data['%3P']*100}
+    progress_bars = []
+    colors = ["primary", "info", "success"]
+    for (stat, value), color in zip(shooting_stats.items(), colors):
+        bar = html.Div([
+            html.Div([html.Span(stat, className="fw-bold"), html.Span(f"{value:.1f}%", className="float-end")], className="mb-1"),
+            dbc.Progress(value=value, color=color, style={"height": "20px"})
+        ], className="mb-3")
+        progress_bars.append(bar)
+        
+    return stat_cards, progress_bars
+
+@app.callback([Output('team-stat-cards', 'children'), Output('points-composition-team', 'figure'), Output('team-logo-display', 'src')], [Input('team-dropdown', 'value')])
 def update_team_graphs(selected_team):
-    if not selected_team: return go.Figure(), go.Figure(), ''
+    if not selected_team: return [], go.Figure(), ''
     
-    team_data = dfs["analise_equipes"][dfs["analise_equipes"]['EQUIPE'] == selected_team].iloc[0]
-    
+    team_data = dfs["analise_equipes"][dfs["analise_equipes"][col_e_nome] == selected_team].iloc[0]
     cor_time = cores_times.get(selected_team, cor_padrao)
-    logo_path = f'/assets/{selected_team}{logo_ext}'
+    logo_path = f'/assets/{team_data[col_e_nome]}{logo_ext}'
 
-    stats_team = {'PPG': team_data['PPG'], 'RPG': team_data['RPG'], 'APG': team_data['APG']}
-    fig_stats_team = px.bar(x=list(stats_team.keys()), y=list(stats_team.values()), title=f"Médias por Jogo - {selected_team}", text_auto=True, template="plotly_white")
-    fig_stats_team.update_traces(marker_color=cor_time)
-    
-    pontos_2 = team_data['2PM'] * 2; pontos_3 = team_data['3PM'] * 3; pontos_ll = team_data['FTM']
+    card_style = {'borderTop': '5px solid', 'minHeight': '150px'}
+    stats_to_show = {"PPG": (team_data['PPG'], "bi-dribbble", "#ff7f0e"), "RPG": (team_data['RPG'], "bi-arrow-down-up", "#1f77b4"), "APG": (team_data['APG'], "bi-people-fill", "#2ca02c")}
+    team_cards = [dbc.Col(dbc.Card(dbc.CardBody([
+                    html.Div([
+                        html.I(className=f"{icon} fs-1", style={'color': color}),
+                        html.H2(f"{value:.1f}", className="fw-bolder my-2"),
+                        html.P(stat, className="text-muted mb-0 fw-bold")
+                    ])
+                ], className="text-center"), style={**card_style, 'borderTopColor': color}), 
+                lg=4, md=6, sm=12, className="mb-4") for stat, (value, icon, color) in stats_to_show.items()]
+
+    pontos_2, pontos_3, pontos_ll = team_data['2PM'] * 2, team_data['3PM'] * 3, team_data['FTM']
     composition_data = {'Tipo': ['Pontos de 2', 'Pontos de 3', 'Lances Livres'], 'Pontos': [pontos_2, pontos_3, pontos_ll]}
-    fig_composition_team = px.pie(composition_data, names='Tipo', values='Pontos', title=f"Composição da Pontuação - {selected_team}", hole=0.4, template="plotly_white", color_discrete_sequence=[cor_time, '#a9a9a9', '#d3d3d3'])
-    
-    return fig_stats_team, fig_composition_team, logo_path
+    fig_composition_team = px.pie(composition_data, names='Tipo', values='Pontos', title="Composição da Pontuação", hole=0.5, template="plotly_dark", color_discrete_sequence=[cor_time, '#636E72', '#B2BEC3'])
+    fig_composition_team.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="white", legend_title_text='', showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+    fig_composition_team.update_traces(textinfo='percent', textfont_size=16)
 
-# --- 7. Execução do Servidor ---
+    return team_cards, fig_composition_team, logo_path
+
+# --- 6. Execução do Servidor ---
 if __name__ == '__main__':
     app.run(debug=True)
