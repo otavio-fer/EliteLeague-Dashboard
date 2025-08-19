@@ -1,4 +1,4 @@
-# app.py (Versão com Correção Final de Erros de Callback e Tabela)
+# app.py (Versão com Correção de Erros de Tabela, Callback e Limpeza de Nomes)
 
 import pandas as pd
 import plotly.express as px
@@ -29,6 +29,11 @@ try:
     dfs["analise_jogadores"]["TOCOS_PG"] = (dfs["analise_jogadores"]["TOCOS"] / dfs["analise_jogadores"]["JOGOS"]).round(2)
     dfs["analise_jogadores"]["EFI_PG"] = (dfs["analise_jogadores"]["EFICIÊNCIA"] / dfs["analise_jogadores"]["JOGOS"]).round(2)
     
+    ### CORREÇÃO PARA LOGOS (Ex: MED UNAERP) ###
+    for key in ["analise_jogadores", "ranking_jogadores", "analise_equipes", "ranking_equipes"]:
+        if "EQUIPE" in dfs[key].columns:
+            dfs[key]["EQUIPE"] = dfs[key]["EQUIPE"].str.strip()
+    
     dfs["analise_equipes"] = dfs["analise_equipes"][dfs["analise_equipes"]["EQUIPE"] != 'TOTAIS'].copy()
     dfs["ranking_equipes"] = dfs["ranking_equipes"][dfs["ranking_equipes"]["EQUIPE"] != 'TOTAIS'].copy()
     
@@ -41,7 +46,13 @@ except Exception as e:
     print(f"ERRO AO LER O ARQUIVO EXCEL: {e}", file=sys.stderr)
     sys.exit()
 
-# Dicionário de Cores e Nomes de Colunas
+# Dicionários e Mapeamentos
+logo_mapping = {
+    "DIREITO USP RP": "DIREITO USP RP.png", "EDUCA USP RP": "EDUCA USP RP.png",
+    "FILÔ USP RP": "FILÔ USP RP.png", "LUS USP RP": "LUS USP RP.png",
+    "MED BARÃO": "MED BARÃO.png", "MED UNAERP": "MED UNAERP.PNG",
+    "MED USP RP": "MED USP RP.png", "ODONTO USP RP": "ODONTO USP RP.png",
+}
 cores_times = {
     "DIREITO USP RP": "#FFD700", "MED USP RP": "#87CEEB", "ODONTO USP RP": "#880e4f",
     "FILÔ USP RP": "#424242", "LUS USP RP": "#00FFFF", "MED UNAERP": "#00008B", "MED BARÃO": "#006400",
@@ -49,7 +60,6 @@ cores_times = {
 cor_padrao = "#66bb6a"
 col_j_nome, col_j_equipe = "APELIDO", "EQUIPE"
 col_e_nome = "EQUIPE"
-logo_ext = ".png"
 
 # --- 2. Inicialização do App ---
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.CYBORG, dbc.icons.BOOTSTRAP], assets_folder='assets')
@@ -74,7 +84,8 @@ def criar_visual_ranking(df, stat_col, name_col, title, unit="", is_total=True, 
         for i in range(min(3, len(top_10))):
             player_or_team = top_10.iloc[i]
             team_name = player_or_team.get(team_col, player_or_team.get(name_col))
-            logo_src = f"/assets/{team_name}{logo_ext}"
+            logo_filename = logo_mapping.get(team_name, "default.png") # Adicione uma logo "default.png" se quiser
+            logo_src = f"/assets/{logo_filename}"
             
             card_style = {"height": "100%"}
             card_class = "mb-3"
@@ -94,7 +105,7 @@ def criar_visual_ranking(df, stat_col, name_col, title, unit="", is_total=True, 
     if len(top_10) > 3:
         table_rows = [html.Tr([html.Th(f"{i+1}º"), html.Td(top_10.iloc[i][name_col]), html.Td(f"{top_10.iloc[i][stat_col]:.1f}")]) for i in range(3, len(top_10))]
         table_header_name = "Atleta" if team_col else "Equipe"
-        ### CORREÇÃO AQUI: REMOVIDO 'dark=True' DA TABELA ###
+        ### CORREÇÃO AQUI: REMOVIDO 'dark=True' ###
         table = dbc.Row(dbc.Col(dbc.Table([html.Thead(html.Tr([html.Th("#"), html.Th(table_header_name), html.Th(unit)])), html.Tbody(table_rows)], striped=True, bordered=True, hover=True, size="sm"), width=12, lg={"size": 8, "offset": 2}), className="mt-4")
 
     return [html.H4(title, className="text-center mt-5 mb-4"), dbc.Row([c for c in podium_cards if c], justify="center"), table]
@@ -221,7 +232,7 @@ def update_team_graphs(selected_team):
     
     team_data = dfs["analise_equipes"][dfs["analise_equipes"][col_e_nome] == selected_team].iloc[0]
     cor_time = cores_times.get(selected_team, cor_padrao)
-    logo_path = f'/assets/{team_data[col_e_nome]}{logo_ext}'
+    logo_path = f'/assets/{logo_mapping.get(selected_team, "default.png")}'
 
     card_style = {'borderTop': '5px solid', 'minHeight': '150px'}
     stats_to_show = {"PPG": (team_data['PPG'], "bi-dribbble", "#ff7f0e"), "RPG": (team_data['RPG'], "bi-arrow-down-up", "#1f77b4"), "APG": (team_data['APG'], "bi-people-fill", "#2ca02c")}
