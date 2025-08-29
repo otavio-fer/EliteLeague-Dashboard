@@ -25,10 +25,19 @@ def load_data():
         dfs["analise_jogadores"].rename(columns={'# RPG': 'RPG', '#APG': 'APG'}, inplace=True)
         dfs["analise_equipes"].rename(columns={'# RPG': 'RPG', '#APG': 'APG'}, inplace=True)
         
+        # --- NOVOS CÁLCULOS AQUI ---
+        # Médias de Jogadores
         dfs["analise_jogadores"]["ROUB_PG"] = (dfs["analise_jogadores"]["ROUB"] / dfs["analise_jogadores"]["JOGOS"]).round(2)
         dfs["analise_jogadores"]["TOCOS_PG"] = (dfs["analise_jogadores"]["TOCOS"] / dfs["analise_jogadores"]["JOGOS"]).round(2)
         dfs["analise_jogadores"]["EFI_PG"] = (dfs["analise_jogadores"]["EFICIÊNCIA"] / dfs["analise_jogadores"]["JOGOS"]).round(2)
+        # Estimativa de Minutos por Jogo (MPG)
+        total_plus_minus_liga = dfs["analise_jogadores"]["PLUS/MINUS"].abs().sum()
+        dfs["analise_jogadores"]["MPG"] = (dfs["analise_jogadores"]["PLUS/MINUS"].abs() / total_plus_minus_liga) * 40 * len(dfs["analise_jogadores"]) # Estimativa baseada na proporção
         
+        # Médias de Equipes
+        dfs["analise_equipes"]["SPG"] = (dfs["analise_equipes"]["ROUB"] / dfs["analise_equipes"]["JOGOS"]).round(2)
+        dfs["analise_equipes"]["BPG"] = (dfs["analise_equipes"]["TOCOS"] / dfs["analise_equipes"]["JOGOS"]).round(2)
+
         dfs["analise_equipes"] = dfs["analise_equipes"][dfs["analise_equipes"]["EQUIPE"] != 'TOTAIS'].copy()
         dfs["ranking_equipes"] = dfs["ranking_equipes"][dfs["ranking_equipes"]["EQUIPE"] != 'TOTAIS'].copy()
 
@@ -43,14 +52,10 @@ dfs = load_data()
 
 # Dicionários e Mapeamentos
 logo_mapping = {
-    "DIREITO USP RP": "DIREITO USP RP.png",
-    "EDUCA USP RP": "EDUCA USP RP.png",
-    "FILÔ USP RP": "FILÔ USP RP.png",
-    "LUS USP RP": "LUS USP RP.png",
-    "MED BARÃO": "MED BARÃO.png",
-    "MED UNAERP": "MED UNAERP.PNG", # Caso especial com extensão maiúscula
-    "MED USP RP": "MED USP RP.png",
-    "ODONTO USP RP": "ODONTO USP RP.png",
+    "DIREITO USP RP": "DIREITO USP RP.png", "EDUCA USP RP": "EDUCA USP RP.png",
+    "FILÔ USP RP": "FILÔ USP RP.png", "LUS USP RP": "LUS USP RP.png",
+    "MED BARÃO": "MED BARÃO.png", "MED UNAERP": "MED UNAERP.PNG",
+    "MED USP RP": "MED USP RP.png", "ODONTO USP RP": "ODONTO USP RP.png",
 }
 cores_times = {
     "DIREITO USP RP": "#FFD700", "MED USP RP": "#87CEEB", "ODONTO USP RP": "#880e4f",
