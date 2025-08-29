@@ -1,13 +1,14 @@
-# pages/2_rankings.py (Atualizado)
+# pages/2_rankings.py (Corrigido)
 
 import dash
 from dash import dcc, html, callback, Input, Output
 import dash_bootstrap_components as dbc
-from data_store import df_analise_filtrado, df_ranking_filtrado, dfs
+# <<<<<<< CORREÇÃO AQUI >>>>>>>
+from data_store import df_analise_filtrado, df_ranking_filtrado, dfs, logo_mapping
 
 dash.register_page(__name__, name='Rankings')
 
-# (A função criar_visual_ranking permanece a mesma)
+# --- Função para Criar Visualização de Ranking (Pódio + Tabela) ---
 def criar_visual_ranking(df, stat_col, name_col, title, unit="", is_total=True, team_col=None):
     if is_total:
         agg_dict = {stat_col: 'sum'}
@@ -19,13 +20,13 @@ def criar_visual_ranking(df, stat_col, name_col, title, unit="", is_total=True, 
     top_10 = df_processed.nlargest(10, stat_col).reset_index(drop=True)
     podium_cards, table = [], None
     medals = ["🥇", "🥈", "🥉"]
-    logo_mapping = dfs['logo_mapping']
 
     if len(top_10) > 0:
         cols = {}
         for i in range(min(3, len(top_10))):
             player_or_team = top_10.iloc[i]
             team_name = player_or_team.get(team_col, player_or_team.get(name_col))
+            # <<<<<<< CORREÇÃO AQUI (usa o logo_mapping importado) >>>>>>>
             logo_filename = logo_mapping.get(team_name, "default.png")
             logo_src = f"/assets/{logo_filename}"
             card_style = {"height": "100%"}
@@ -42,6 +43,7 @@ def criar_visual_ranking(df, stat_col, name_col, title, unit="", is_total=True, 
         table = dbc.Row(dbc.Col(dbc.Table([html.Thead(html.Tr([html.Th("#"), html.Th(table_header_name), html.Th(unit)])), html.Tbody(table_rows)], striped=True, bordered=True, hover=True, size="sm"), width=12, lg={"size": 8, "offset": 2}), className="mt-4")
     return [html.H4(title, className="text-center mt-5 mb-4"), dbc.Row([c for c in podium_cards if c], justify="center"), table]
 
+
 # --- Layout da Página de Rankings ---
 opcoes_ranking_jogadores = [
     {'label': 'Média de Pontos (PPG)', 'value': 'j_media_pontos'}, {'label': 'Média de Rebotes (RPG)', 'value': 'j_media_rebotes'},
@@ -50,7 +52,6 @@ opcoes_ranking_jogadores = [
     {'label': 'Total de Pontos', 'value': 'j_total_pontos'}, {'label': 'Total de Rebotes', 'value': 'j_total_rebotes'},
     {'label': 'Total de Assistências', 'value': 'j_total_assistencias'},
 ]
-### NOVAS OPÇÕES AQUI ###
 opcoes_ranking_equipes = [
     {'label': 'Média de Pontos Marcados (PPG)', 'value': 'e_media_pontos'},
     {'label': 'Média de Rebotes (RPG)', 'value': 'e_media_rebotes'},
@@ -94,7 +95,6 @@ def update_player_ranking_display(selected_stat):
 
 @callback(Output('ranking-display-equipes', 'children'), Input('seletor-ranking-equipes', 'value'))
 def update_team_ranking_display(selected_stat):
-    ### NOVAS OPÇÕES AQUI ###
     map_stats = {
         'e_media_pontos': (dfs['analise_equipes'], 'PPG', "EQUIPE", "Média de Pontos Marcados", "PPG", False),
         'e_media_rebotes': (dfs['analise_equipes'], 'RPG', "EQUIPE", "Média de Rebotes", "RPG", False),

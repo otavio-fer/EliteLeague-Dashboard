@@ -11,26 +11,26 @@ dash.register_page(__name__, name='Análise Detalhada')
 # --- Legenda de Estatísticas ---
 legenda_accordion = dbc.Accordion([
     dbc.AccordionItem("PPG (Pontos por Jogo): Média de pontos que um jogador marca por partida.", title="PPG"),
-    dbc.AccordionItem("RPG (Rebotes por Jogo): Média de rebotes (ofensivos + defensivos) que um jogador pega por partida.", title="RPG"),
-    dbc.AccordionItem("APG (Assistências por Jogo): Média de passes que resultam diretamente em uma cesta de um companheiro de equipe.", title="APG"),
+    dbc.AccordionItem("RPG (Rebotes por Jogo): Média de rebotes que um jogador pega por partida.", title="RPG"),
+    dbc.AccordionItem("APG (Assistências por Jogo): Média de passes que resultam em cesta.", title="APG"),
     dbc.AccordionItem("SPG (Roubos por Jogo): Média de roubos de bola por partida.", title="SPG - Steals per Game"),
     dbc.AccordionItem("BPG (Tocos por Jogo): Média de bloqueios (tocos) por partida.", title="BPG - Blocks per Game"),
-    dbc.AccordionItem("MPG (Minutos por Jogo): Estimativa da média de minutos que o jogador esteve em quadra por partida.", title="MPG - Minutos por Jogo (Estimativa)"),
+    dbc.AccordionItem("MPG (Minutos por Jogo): Estimativa da média de minutos em quadra por partida.", title="MPG - Minutos por Jogo (Estimativa)"),
     dbc.AccordionItem("%FT (Aproveitamento de Lance Livre): Porcentagem de lances livres convertidos.", title="%FT - Free Throw Percentage"),
-    dbc.AccordionItem("EFI (Eficiência): Uma medida geral do valor de um jogador.", title="EFI"),
-], start_collapsed=True)
-
+    dbc.AccordionItem("EFI (Eficiência): Medida geral do valor de um jogador.", title="EFI"),
+], start_collapsed=True, flush=True)
 
 # --- Layout da Página de Análise ---
 layout = dbc.Container([
-    dbc.Tabs([
-        dbc.Tab(label='Análise Individual', children=[
+    ### ABA PADRÃO DEFINIDA AQUI ###
+    dbc.Tabs(active_tab='tab-equipe', children=[
+        dbc.Tab(label='Análise Individual', tab_id='tab-individual', children=[
             dbc.Row(dbc.Col(dbc.Card([dbc.CardBody(dcc.Dropdown(id='player-dropdown', options=[{'label': apelido, 'value': apelido} for apelido in sorted(df_analise_completo['APELIDO'].unique())], value=sorted(df_analise_completo['APELIDO'].unique())[0] if not df_analise_completo.empty else None))]), width={"size": 10, "offset": 1}, lg={"size": 6, "offset": 3}, className="my-4")),
             dbc.Row(id='player-stat-cards', justify="center", className="p-4"),
             dbc.Row([dbc.Col(dbc.Card([dbc.CardHeader("Aproveitamento de Arremessos (%)", className="fw-bold"), dbc.CardBody(id='shooting-progress-bars')]), width=12, lg=8, className="mx-auto p-4")], ),
             dbc.Row(dbc.Col(legenda_accordion, width=12, lg=8, className="mx-auto p-4"))
         ]),
-        dbc.Tab(label='Análise por Equipe', children=[
+        dbc.Tab(label='Análise por Equipe', tab_id='tab-equipe', children=[
             dbc.Row([
                 dbc.Col(dbc.Card([dbc.CardBody(dcc.Dropdown(id='team-dropdown', options=[{'label': equipe, 'value': equipe} for equipe in sorted(dfs["analise_equipes"]['EQUIPE'].unique())], value=sorted(dfs["analise_equipes"]['EQUIPE'].unique())[0]))]), lg=7, sm=12),
                 dbc.Col(html.Img(id='team-logo-display', height="150px"), lg=5, sm=12, className="text-center align-self-center mt-3 mt-lg-0")
@@ -47,37 +47,34 @@ def update_player_analysis(selected_player):
     if not selected_player: return [], []
     player_data = df_analise_completo[df_analise_completo['APELIDO'] == selected_player].iloc[0]
     
-    ### NOVAS ESTATÍSTICAS AQUI ###
+    ### %FT REMOVIDO DOS CARDS ###
     card_style = {'borderTop': '5px solid', 'minHeight': '150px'}
     stats_to_show = {
         "PPG": (player_data['PPG'], "bi-dribbble"), "RPG": (player_data['RPG'], "bi-arrow-down-up"),
         "APG": (player_data['APG'], "bi-people-fill"), "SPG": (player_data['ROUB_PG'], "bi-person-bounding-box"),
         "BPG": (player_data['TOCOS_PG'], "bi-hand-index-thumb-fill"), 
-        "MPG": (player_data['MPG'], "bi-clock-history"), 
-        "%FT": (player_data['%FT']*100, "bi-bullseye"), 
-        "EFI": (player_data['EFI_PG'], "bi-star-fill")
+        "MPG": (player_data['MPG'], "bi-clock-history"), "EFI": (player_data['EFI_PG'], "bi-star-fill")
     }
-    
-    colors = ["#ff7f0e", "#1f77b4", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"]
-    
-    stat_cards = []
-    for i, (stat, (value, icon)) in enumerate(stats_to_show.items()):
-        card = dbc.Col(dbc.Card(dbc.CardBody([
+    colors = ["#ff7f0e", "#1f77b4", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2"]
+    stat_cards = [dbc.Col(dbc.Card(dbc.CardBody([
                     html.Div([
                         html.I(className=f"{icon} fs-1", style={'color': colors[i]}),
                         html.H2(f"{value:.1f}", className="fw-bolder my-2"),
                         html.P(stat, className="text-muted mb-0 fw-bold")
                     ])
                 ], className="text-center"), style={**card_style, 'borderTopColor': colors[i]}), 
-                lg=3, md=4, sm=6, className="mb-4")
-        stat_cards.append(card)
+                lg=3, md=4, sm=6, className="mb-4") for i, (stat, (value, icon)) in enumerate(stats_to_show.items())]
 
-
-    shooting_stats = {"FG%": player_data['%FG']*100, "2P%": player_data['%2P']*100, "3P%": player_data['%3P']*100}
-    progress_bars = [html.Div([
-        html.Div([html.Span(stat, className="fw-bold"), html.Span(f"{value:.1f}%", className="float-end")], className="mb-1"), 
-        dbc.Progress(value=value, color=color, style={"height": "20px"})
-    ], className="mb-3") for (stat, value), color in zip(shooting_stats.items(), ["primary", "info", "success"])]
+    ### %FT ADICIONADO ÀS BARRAS DE PROGRESSO ###
+    shooting_stats = {"FG%": player_data['%FG']*100, "2P%": player_data['%2P']*100, "3P%": player_data['%3P']*100, "FT%": player_data['%FT']*100}
+    progress_bars = []
+    colors = ["primary", "info", "success", "danger"]
+    for (stat, value), color in zip(shooting_stats.items(), colors):
+        bar = html.Div([
+            html.Div([html.Span(stat, className="fw-bold"), html.Span(f"{value:.1f}%", className="float-end")], className="mb-1"), 
+            dbc.Progress(value=value, color=color, style={"height": "20px"})
+        ], className="mb-3")
+        progress_bars.append(bar)
         
     return stat_cards, progress_bars
 
