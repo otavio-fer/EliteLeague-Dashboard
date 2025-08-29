@@ -52,40 +52,59 @@ def criar_visual_ranking(df, stat_col, name_col, title, unit="", is_total=True, 
 
     return [html.H4(title, className="text-center mt-5 mb-4"), dbc.Row([c for c in podium_cards if c], justify="center"), table]
 
-# --- NOVA FUNÇÃO: Criar Visualização do All-Team na Quadra ---
+# --- NOVA FUNÇÃO: Criar Visualização do All-Team na Quadra (Otimizada para Mobile) ---
 def criar_quadra_all_team(df_team, title):
     fig = go.Figure()
 
-    # Desenha a quadra
-    fig.add_shape(type="rect", x0=-250, y0=-47.5, x1=250, y1=422.5, line=dict(color="white", width=2))
-    fig.add_shape(type="circle", x0=-60, y0=130, x1=60, y1=250, line=dict(color="white", width=2))
-    fig.add_shape(type="path", path="M -220,-47.5 L -220,142.5 C -220,280 220,280 220,142.5 L 220,-47.5", line=dict(color="white", width=2))
-    fig.add_shape(type="rect", x0=-80, y0=-47.5, x1=80, y1=142.5, line=dict(color="white", width=2))
-    fig.add_shape(type="rect", x0=-30, y0=-7.5, x1=30, y1=-47.5, line=dict(color="white", width=2), fillcolor="gray")
-
-    # Define as posições dos 5 jogadores
-    posicoes = [(-180, 50), (180, 50), (-100, 250), (100, 250), (0, 350)]
+    # Desenha uma MEIA QUADRA (mais compacta para mobile)
+    # Dimensões de uma meia quadra (valores relativos para caber na view)
+    court_width = 250
+    court_height = 235 # Metade de 470
     
+    fig.add_shape(type="rect", x0=-court_width, y0=-2, x1=court_width, y1=court_height, line=dict(color="white", width=2))
+    fig.add_shape(type="circle", x0=-60, y0=60, x1=60, y1=180, line=dict(color="white", width=2)) # Círculo central ajustado
+    fig.add_shape(type="path", path=f"M -{court_width-30},-2 L -{court_width-30},120 C -{court_width-30},200 {court_width-30},200 {court_width-30},120 L {court_width-30},-2", line=dict(color="white", width=2)) # Linha de 3 pontos
+    fig.add_shape(type="rect", x0=-80, y0=-2, x1=80, y1=110, line=dict(color="white", width=2)) # Garrafão
+    fig.add_shape(type="rect", x0=-30, y0=-30, x1=30, y1=-2, line=dict(color="white", width=2), fillcolor="gray") # Tabela (pequena)
+
+    # Posições dos 5 jogadores em uma meia quadra (mais próximas)
+    # (PG, SG, SF, PF, C)
+    posicoes = [
+        (-100, 150),  # PG (ponto guarda)
+        (100, 150),   # SG (ala-armador)
+        (-150, 70),   # SF (ala)
+        (150, 70),    # PF (ala-pivô)
+        (0, 30)       # C (pivô)
+    ]
+    
+    # Tamanho da logo e fonte ajustados para mobile
+    logo_size = 50
+    font_size = 12
+
     for i, (index, player) in enumerate(df_team.iterrows()):
         logo_filename = logo_mapping.get(player['EQUIPE'], "default.png")
         
         # Adiciona a logo
         fig.add_layout_image(
             dict(source=f"/assets/{logo_filename}", xref="x", yref="y", x=posicoes[i][0], y=posicoes[i][1],
-                 sizex=60, sizey=60, xanchor="center", yanchor="middle", sizing="contain")
+                 sizex=logo_size, sizey=logo_size, xanchor="center", yanchor="middle", sizing="contain")
         )
         # Adiciona o nome
         fig.add_annotation(
-            x=posicoes[i][0], y=posicoes[i][1] - 50, # Posição abaixo da logo
-            text=f"<b>{player['APELIDO']}</b>", showarrow=False, font=dict(color="white", size=14)
+            x=posicoes[i][0], y=posicoes[i][1] - (logo_size/2) - 15, # Posição abaixo da logo
+            text=f"<b>{player['APELIDO']}</b>", showarrow=False, font=dict(color="white", size=font_size),
+            bgcolor="rgba(0,0,0,0.5)", bordercolor="white", borderwidth=1, borderpad=2,  # Fundo para melhor legibilidade
+            width=100, # Largura máxima para o texto
+            align="center"
         )
 
     fig.update_layout(
-        title=dict(text=title, x=0.5),
-        xaxis=dict(showgrid=False, zeroline=False, visible=False, range=[-270, 270]),
-        yaxis=dict(showgrid=False, zeroline=False, visible=False, range=[-100, 450]),
+        title=dict(text=title, x=0.5, font=dict(size=18)), # Título ligeiramente menor
+        xaxis=dict(showgrid=False, zeroline=False, visible=False, range=[-court_width-20, court_width+20]),
+        yaxis=dict(showgrid=False, zeroline=False, visible=False, range=[-50, court_height+50]),
         paper_bgcolor="#222222", plot_bgcolor="#222222",
-        height=600
+        height=500, # Altura total do gráfico ajustada
+        margin=dict(l=10, r=10, t=50, b=10) # Margens para evitar cortes
     )
     return dbc.Card([dbc.CardBody(dcc.Graph(figure=fig))])
 
