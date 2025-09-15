@@ -1,14 +1,16 @@
-# pages/3_analise.py (Atualizado)
+# pages/3_analise.py (Atualizado para Múltiplas Ligas)
 
 import dash
 from dash import dcc, html, callback, Input, Output
 import dash_bootstrap_components as dbc
 import plotly.express as px
-from data_store import df_analise_completo, dfs, cores_times, cor_padrao, logo_mapping
+import plotly.graph_objects as go
+import pandas as pd
+from data_store import data, cores_times, cor_padrao, logo_mapping
 
 dash.register_page(__name__, name='Análise Detalhada')
 
-# --- Legenda de Estatísticas ---
+# --- Legenda de Estatísticas (sem alteração) ---
 legenda_accordion = dbc.Accordion([
     dbc.AccordionItem("PPG (Pontos por Jogo): Média de pontos que um jogador marca por partida.", title="PPG"),
     dbc.AccordionItem("RPG (Rebotes por Jogo): Média de rebotes que um jogador pega por partida.", title="RPG"),
@@ -20,34 +22,70 @@ legenda_accordion = dbc.Accordion([
     dbc.AccordionItem("EFI (Eficiência): Medida geral do valor de um jogador.", title="EFI"),
 ], start_collapsed=True, flush=True)
 
-# --- Layout da Página de Análise ---
-layout = dbc.Container([
-    ### ABA PADRÃO DEFINIDA AQUI ###
-    dbc.Tabs(active_tab='tab-equipe', children=[
-        dbc.Tab(label='Análise Individual', tab_id='tab-individual', children=[
-            dbc.Row(dbc.Col(dbc.Card([dbc.CardBody(dcc.Dropdown(id='player-dropdown', options=[{'label': apelido, 'value': apelido} for apelido in sorted(df_analise_completo['APELIDO'].unique())], value=sorted(df_analise_completo['APELIDO'].unique())[0] if not df_analise_completo.empty else None))]), width={"size": 10, "offset": 1}, lg={"size": 6, "offset": 3}, className="my-4")),
-            dbc.Row(id='player-stat-cards', justify="center", className="p-4"),
-            dbc.Row([dbc.Col(dbc.Card([dbc.CardHeader("Aproveitamento de Arremessos (%)", className="fw-bold"), dbc.CardBody(id='shooting-progress-bars')]), width=12, lg=8, className="mx-auto p-4")], ),
-            dbc.Row(dbc.Col(legenda_accordion, width=12, lg=8, className="mx-auto p-4"))
-        ]),
-        dbc.Tab(label='Análise por Equipe', tab_id='tab-equipe', children=[
-            dbc.Row([
-                dbc.Col(dbc.Card([dbc.CardBody(dcc.Dropdown(id='team-dropdown', options=[{'label': equipe, 'value': equipe} for equipe in sorted(dfs["analise_equipes"]['EQUIPE'].unique())], value=sorted(dfs["analise_equipes"]['EQUIPE'].unique())[0]))]), lg=7, sm=12),
-                dbc.Col(html.Img(id='team-logo-display', height="150px"), lg=5, sm=12, className="text-center align-self-center mt-3 mt-lg-0")
-            ], className="my-4 px-4", justify="center", align="center"),
-            dbc.Row(id='team-stat-cards', justify="center", className="p-4"),
-            dbc.Row([dbc.Col(dbc.Card(dcc.Graph(id='points-composition-team')), width=12, lg=8, className="mx-auto p-4")], )
+# --- Layout da Página ---
+def layout():
+    return dbc.Container([
+        dbc.Tabs(active_tab='tab-equipe', children=[
+            dbc.Tab(label='Análise Individual', tab_id='tab-individual', children=[
+                dbc.Row(dbc.Col(dbc.Card([dbc.CardBody(dcc.Dropdown(id='player-dropdown'))]), width={"size": 10, "offset": 1}, lg={"size": 6, "offset": 3}, className="my-4")),
+                dbc.Row(id='player-stat-cards', justify="center", className="p-4"),
+                dbc.Row([dbc.Col(dbc.Card([dbc.CardHeader("Aproveitamento de Arremessos (%)", className="fw-bold"), dbc.CardBody(id='shooting-progress-bars')]), width=12, lg=8, className="mx-auto p-4")]),
+                dbc.Row(dbc.Col(legenda_accordion, width=12, lg=8, className="mx-auto p-4"))
+            ]),
+            dbc.Tab(label='Análise por Equipe', tab_id='tab-equipe', children=[
+                dbc.Row([
+                    dbc.Col(dbc.Card([dbc.CardBody(dcc.Dropdown(id='team-dropdown'))]), lg=7, sm=12),
+                    dbc.Col(html.Img(id='team-logo-display', height="150px"), lg=5, sm=12, className="text-center align-self-center mt-3 mt-lg-0")
+                ], className="my-4 px-4", justify="center", align="center"),
+                dbc.Row(id='team-stat-cards', justify="center", className="p-4"),
+                dbc.Row([dbc.Col(dbc.Card(dcc.Graph(id='points-composition-team')), width=12, lg=8, className="mx-auto p-4")])
+            ])
         ])
-    ])
-], fluid=True)
+    ], fluid=True)
 
-# --- Callbacks de Análise ---
-@callback(Output('player-stat-cards', 'children'), Output('shooting-progress-bars', 'children'), Input('player-dropdown', 'value'))
-def update_player_analysis(selected_player):
-    if not selected_player: return [], []
-    player_data = df_analise_completo[df_analise_completo['APELIDO'] == selected_player].iloc[0]
+# --- Callback para ATUALIZAR as opções dos Dropdowns ---
+@callback(
+    Output('player-dropdown', 'options'),
+    Output('player-dropdown', 'value'),
+    Output('team-dropdown', 'options'),
+    Output('team-dropdown', 'value'),
+    Input('league-store', 'data')
+)
+def update_analysis_dropdowns(league):
+    league_data = data.get(league, {})
     
-    ### %FT REMOVIDO DOS CARDS ###
+    # Opções de Jogadores
+    df_jogadores = league_data.get('df_analise_completo', pd.DataFrame())
+    if not df_jogadores.empty:
+        player_options = [{'label': apelido, 'value': apelido} for apelido in sorted(df_jogadores['APELIDO'].unique())]
+        player_value = player_options[0]['value'] if player_options else None
+    else:
+        player_options, player_value = [], None
+        
+    # Opções de Equipes
+    df_equipes = league_data.get('dfs', {}).get('analise_equipes', pd.DataFrame())
+    if not df_equipes.empty:
+        team_options = [{'label': equipe, 'value': equipe} for equipe in sorted(df_equipes['EQUIPE'].unique())]
+        team_value = team_options[0]['value'] if team_options else None
+    else:
+        team_options, team_value = [], None
+        
+    return player_options, player_value, team_options, team_value
+
+# --- Callbacks de Análise (agora também "escutam" a liga) ---
+@callback(
+    Output('player-stat-cards', 'children'),
+    Output('shooting-progress-bars', 'children'),
+    Input('player-dropdown', 'value'),
+    Input('league-store', 'data')
+)
+def update_player_analysis(selected_player, league):
+    if not selected_player or not league:
+        return [], []
+        
+    df_analise = data[league]['df_analise_completo']
+    player_data = df_analise[df_analise['APELIDO'] == selected_player].iloc[0]
+    
     card_style = {'borderTop': '5px solid', 'minHeight': '150px'}
     stats_to_show = {
         "PPG": (player_data['PPG'], "bi-dribbble"), "RPG": (player_data['RPG'], "bi-arrow-down-up"),
@@ -65,11 +103,10 @@ def update_player_analysis(selected_player):
                 ], className="text-center"), style={**card_style, 'borderTopColor': colors[i]}), 
                 lg=3, md=4, sm=6, className="mb-4") for i, (stat, (value, icon)) in enumerate(stats_to_show.items())]
 
-    ### %FT ADICIONADO ÀS BARRAS DE PROGRESSO ###
     shooting_stats = {"FG%": player_data['%FG']*100, "2P%": player_data['%2P']*100, "3P%": player_data['%3P']*100, "FT%": player_data['%FT']*100}
     progress_bars = []
-    colors = ["primary", "info", "success", "danger"]
-    for (stat, value), color in zip(shooting_stats.items(), colors):
+    colors_progress = ["primary", "info", "success", "danger"]
+    for (stat, value), color in zip(shooting_stats.items(), colors_progress):
         bar = html.Div([
             html.Div([html.Span(stat, className="fw-bold"), html.Span(f"{value:.1f}%", className="float-end")], className="mb-1"), 
             dbc.Progress(value=value, color=color, style={"height": "20px"})
@@ -78,11 +115,19 @@ def update_player_analysis(selected_player):
         
     return stat_cards, progress_bars
 
-@callback([Output('team-stat-cards', 'children'), Output('points-composition-team', 'figure'), Output('team-logo-display', 'src')], [Input('team-dropdown', 'value')])
-def update_team_graphs(selected_team):
-    if not selected_team: return [], go.Figure(), ''
+@callback(
+    Output('team-stat-cards', 'children'),
+    Output('points-composition-team', 'figure'),
+    Output('team-logo-display', 'src'),
+    Input('team-dropdown', 'value'),
+    Input('league-store', 'data')
+)
+def update_team_graphs(selected_team, league):
+    if not selected_team or not league:
+        return [], go.Figure(), ''
     
-    team_data = dfs["analise_equipes"][dfs["analise_equipes"]['EQUIPE'] == selected_team].iloc[0]
+    df_equipes = data[league]['dfs']['analise_equipes']
+    team_data = df_equipes[df_equipes['EQUIPE'] == selected_team].iloc[0]
     cor_time = cores_times.get(selected_team, cor_padrao)
     logo_path = f'/assets/{logo_mapping.get(selected_team, "default.png")}'
 
@@ -97,7 +142,9 @@ def update_team_graphs(selected_team):
                 ], className="text-center"), style={**card_style, 'borderTopColor': color}), 
                 lg=4, md=6, sm=12, className="mb-4") for stat, (value, icon, color) in stats_to_show.items()]
 
-    pontos_2, pontos_3, pontos_ll = team_data['2PM'] * 2, team_data['3PM'] * 3, team_data['FTM']
+    pontos_2 = team_data.get('2PM', 0) * 2
+    pontos_3 = team_data.get('3PM', 0) * 3
+    pontos_ll = team_data.get('FTM', 0)
     composition_data = {'Tipo': ['Pontos de 2', 'Pontos de 3', 'Lances Livres'], 'Pontos': [pontos_2, pontos_3, pontos_ll]}
     fig_composition_team = px.pie(composition_data, names='Tipo', values='Pontos', title="Composição da Pontuação", hole=0.5, template="plotly_dark", color_discrete_sequence=[cor_time, '#636E72', '#B2BEC3'])
     fig_composition_team.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="white", legend_title_text='', showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))

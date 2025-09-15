@@ -1,14 +1,14 @@
-# pages/1_classificacao.py (Corrigido)
+# pages/1_classificacao.py (Atualizado para Múltiplas Ligas)
 
 import dash
 from dash import dcc, html, callback, Input, Output, State, ALL
 import dash_bootstrap_components as dbc
 import pandas as pd
-from data_store import dfs, logo_mapping
+from data_store import data, logo_mapping # Importa a estrutura de dados principal
 
 dash.register_page(__name__, path='/', name='Classificação')
 
-# --- Funções de Processamento de Dados para a Classificação ---
+# --- Funções de Processamento de Dados (sem alteração) ---
 def calcular_streak(resultados):
     if not resultados: return "-"
     ultimo_resultado = resultados[-1]
@@ -22,6 +22,9 @@ def calcular_ultimos_jogos(resultados):
     return " ".join([r[0] for r in resultados[-3:]])
 
 def processar_classificacao(df_jogos):
+    if df_jogos.empty:
+        return pd.DataFrame()
+        
     df_jogos['RESULTADO_ABREV'] = df_jogos['RESULTADO'].apply(lambda x: 'V' if x == 'VITÓRIA' else 'D')
     
     classificacao = {}
@@ -44,73 +47,94 @@ def processar_classificacao(df_jogos):
     df_classificacao = pd.DataFrame.from_dict(classificacao, orient='index').reset_index().rename(columns={'index': 'EQUIPE'})
     df_classificacao = df_classificacao.sort_values(by=['V%', 'SALDO'], ascending=[False, False]).reset_index(drop=True)
     
-    df_classificacao.insert(0, '#', [f"{i}º" for i in range(1, len(df_classificacao) + 1)])
-    df_classificacao['V%'] = df_classificacao['V%'].apply(lambda x: f"{x:.3f}")
+    if not df_classificacao.empty:
+        df_classificacao.insert(0, '#', [f"{i}º" for i in range(1, len(df_classificacao) + 1)])
+        df_classificacao['V%'] = df_classificacao['V%'].apply(lambda x: f"{x:.3f}")
 
     return df_classificacao
 
-# --- Criação da Tabela de Classificação ---
-df_classificacao = processar_classificacao(dfs['ranking_equipes'].copy())
-
-### CORREÇÃO AQUI: Removidos os colchetes extras [] que envolviam o html.Thead ###
-tabela_header = html.Thead(html.Tr([html.Th(col) for col in df_classificacao.columns] + [html.Th("Histórico")]))
-
-tabela_body = []
-for i, row in df_classificacao.iterrows():
-    row_class = ""
-    if i < 4:
-        row_class = "table-warning" 
-    elif i >= len(df_classificacao) - 4:
-        row_class = "table-secondary"
-
-    logo_filename = logo_mapping.get(row['EQUIPE'], "default.png")
-    
-    cells = [html.Td(row[col]) for col in df_classificacao.columns if col != 'EQUIPE']
-    team_cell = html.Td(
-        html.Div([
-            html.Img(src=f"/assets/{logo_filename}", height="30px", className="me-2"),
-            row['EQUIPE']
-        ], style={'display': 'flex', 'alignItems': 'center'})
-    )
-    cells.insert(1, team_cell)
-    
-    cells.append(html.Td(dbc.Button("Ver Jogos", id={'type': 'hist-button', 'index': row['EQUIPE']}, n_clicks=0, size="sm", color="primary")))
-    
-    tabela_body.append(html.Tr(cells, className=row_class))
-
 # --- Layout da Página ---
-layout = dbc.Container([
-    dbc.Row(dbc.Col(html.H3("Tabela de Classificação", className="text-center my-4"))),
-    
-    dbc.Row([
-        dbc.Col(dbc.Alert(children=[html.I(className="bi bi-square-fill me-2", style={"color": "#fff0c2"}), "Zona de Classificação (Série Ouro)"], color="light", className="text-center p-2")),
-        dbc.Col(dbc.Alert(children=[html.I(className="bi bi-square-fill me-2", style={"color": "#e2e3e5"}), "Zona de Classificação (Série Prata)"], color="light", className="text-center p-2")),
-    ], className="mb-3", justify="center"),
-    
-    dbc.Row(dbc.Col(dbc.Table([tabela_header, html.Tbody(tabela_body)], bordered=True, hover=True, responsive=True, striped=True), width=12)),
-    
-    dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle(id="modal-title")),
-        dbc.ModalBody(id="modal-body"),
-    ], id="modal-historico", is_open=False, size="lg")
-], fluid=True)
+# O layout agora é uma função que retorna os componentes, para ser atualizado dinamicamente
+def layout():
+    return dbc.Container([
+        dbc.Row(dbc.Col(html.H3("Tabela de Classificação", className="text-center my-4"))),
+        dbc.Row([
+            dbc.Col(dbc.Alert(children=[html.I(className="bi bi-square-fill me-2", style={"color": "#fff0c2"}), "Zona de Classificação (Série Ouro)"], color="light", className="text-center p-2")),
+            dbc.Col(dbc.Alert(children=[html.I(className="bi bi-square-fill me-2", style={"color": "#e2e3e5"}), "Zona de Classificação (Série Prata)"], color="light", className="text-center p-2")),
+        ], className="mb-3", justify="center"),
+        
+        # <<<<<<<<<< CONTEÚDO DA TABELA SERÁ INSERIDO AQUI PELO CALLBACK >>>>>>>>>
+        dbc.Row(id='classification-table-content'),
+        
+        dbc.Modal([
+            dbc.ModalHeader(dbc.ModalTitle(id="modal-title-classificacao")),
+            dbc.ModalBody(id="modal-body-classificacao"),
+        ], id="modal-historico-classificacao", is_open=False, size="lg")
+    ], fluid=True)
 
 
-# --- Callback para o Modal de Histórico ---
+# --- NOVO CALLBACK PRINCIPAL PARA ATUALIZAR A PÁGINA ---
 @callback(
-    Output("modal-historico", "is_open"), Output("modal-title", "children"), Output("modal-body", "children"),
-    Input({'type': 'hist-button', 'index': ALL}, 'n_clicks'),
-    State("modal-historico", "is_open"),
+    Output('classification-table-content', 'children'),
+    Input('league-store', 'data') # "Escuta" a mudança de liga
+)
+def update_classification_page(league):
+    league_data = data.get(league, {})
+    if not league_data or 'dfs' not in league_data or 'ranking_equipes' not in league_data['dfs']:
+        return dbc.Alert("Dados para a liga selecionada não encontrados.", color="danger")
+        
+    df_jogos = league_data['dfs']['ranking_equipes'].copy()
+    df_classificacao = processar_classificacao(df_jogos)
+
+    if df_classificacao.empty:
+        return dbc.Alert("Ainda não há dados de classificação para esta liga.", color="info")
+
+    tabela_header = html.Thead(html.Tr([html.Th(col) for col in df_classificacao.columns] + [html.Th("Histórico")]))
+
+    tabela_body = []
+    for i, row in df_classificacao.iterrows():
+        row_class = ""
+        if i < 4: row_class = "table-warning" 
+        elif i >= len(df_classificacao) - 4: row_class = "table-secondary"
+
+        logo_filename = logo_mapping.get(row['EQUIPE'], "default.png")
+        
+        cells = [html.Td(row[col]) for col in df_classificacao.columns if col != 'EQUIPE']
+        team_cell = html.Td(
+            html.Div([
+                html.Img(src=f"/assets/{logo_filename}", height="30px", className="me-2"),
+                row['EQUIPE']
+            ], style={'display': 'flex', 'alignItems': 'center'})
+        )
+        cells.insert(1, team_cell)
+        
+        cells.append(html.Td(dbc.Button("Ver Jogos", id={'type': 'hist-button-classificacao', 'index': row['EQUIPE']}, n_clicks=0, size="sm", color="primary")))
+        
+        tabela_body.append(html.Tr(cells, className=row_class))
+
+    return dbc.Col(dbc.Table([tabela_header, html.Tbody(tabela_body)], bordered=True, hover=True, responsive=True, striped=True), width=12)
+
+
+# --- Callback para o Modal de Histórico (com IDs atualizados) ---
+@callback(
+    Output("modal-historico-classificacao", "is_open"), 
+    Output("modal-title-classificacao", "children"), 
+    Output("modal-body-classificacao", "children"),
+    Input({'type': 'hist-button-classificacao', 'index': ALL}, 'n_clicks'),
+    State("modal-historico-classificacao", "is_open"),
+    State('league-store', 'data'), # Precisa saber qual liga está ativa
     prevent_initial_call=True
 )
-def show_team_history(n_clicks, is_open):
+def show_team_history(n_clicks, is_open, league):
     ctx = dash.callback_context
-    if not ctx.triggered or not any(n_clicks): return False, "", ""
+    if not ctx.triggered or not any(n_clicks):
+        return False, "", ""
 
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     team_name = eval(button_id)['index']
     
-    jogos_time = dfs['ranking_equipes'][dfs['ranking_equipes']['EQUIPE'] == team_name].sort_values(by='DATA', ascending=False)
+    df_jogos = data[league]['dfs']['ranking_equipes']
+    jogos_time = df_jogos[df_jogos['EQUIPE'] == team_name].sort_values(by='DATA', ascending=False)
     
     historico_body = []
     for index, jogo in jogos_time.iterrows():
