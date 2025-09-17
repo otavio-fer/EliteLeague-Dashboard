@@ -1,4 +1,4 @@
-# data_store.py (Corrigido com Limpeza de Dados na Ordem Certa)
+# data_store.py 
 
 import pandas as pd
 import sys
@@ -16,7 +16,6 @@ def process_league_data(filename, league_type):
         }
         dfs = {name: pd.read_excel(filename, sheet_name=sheet) for name, sheet in sheet_names.items()}
 
-        # <<<<<<<<<<<<<<< INÍCIO DA CORREÇÃO >>>>>>>>>>>>>>>
         # Renomeia colunas ANTES de qualquer processamento
         for df_name in ["analise_jogadores", "analise_equipes"]:
             dfs[df_name].rename(columns={'# RPG': 'RPG', '#APG': 'APG', 'PPJ': 'PPG'}, inplace=True)
@@ -34,7 +33,6 @@ def process_league_data(filename, league_type):
             for col in numeric_cols:
                 if col in dfs[df_name].columns:
                     dfs[df_name][col] = pd.to_numeric(dfs[df_name][col], errors='coerce').fillna(0)
-        # <<<<<<<<<<<<<<< FIM DA CORREÇÃO >>>>>>>>>>>>>>>
 
         for df in dfs.values():
             df.columns = df.columns.astype(str).str.strip()
@@ -45,6 +43,20 @@ def process_league_data(filename, league_type):
         df_analise['APELIDO'] = df_analise['APELIDO'].replace({
             'MBAPPE LUS': 'MBAPPE', 'CIANETO LUS': 'CIANETO', 'SCOOBY LUS': 'SCOOBY'
         })
+        
+        # <<<<<<<<<<<<<<< INÍCIO DA NOVA LÓGICA >>>>>>>>>>>>>>>
+        df_status_raw = dfs["ranking_jogadores"]
+        if not df_status_raw.empty and 'APELIDO' in df_status_raw.columns and 'STATUS' in df_status_raw.columns:
+            status_counts = df_status_raw.groupby(['APELIDO', 'STATUS']).size().unstack(fill_value=0)
+            status_counts['FUNCAO'] = status_counts.apply(
+                lambda row: 'Titular' if row.get('TITULAR', 0) >= row.get('RESERVA', 0) else 'Reserva',
+                axis=1
+            )
+            player_function = status_counts[['FUNCAO']]
+            # Adiciona a função ao DataFrame principal de análise
+            dfs["analise_jogadores"] = dfs["analise_jogadores"].merge(player_function, on='APELIDO', how='left')
+            dfs["analise_jogadores"]['FUNCAO'].fillna('Indefinido', inplace=True)
+        # <<<<<<<<<<<<<<< FIM DA NOVA LÓGICA >>>>>>>>>>>>>>>
         
         stats_df = dfs["analise_jogadores"]
         stats_df["ROUB_PG"] = (stats_df["ROUB"] / stats_df["JOGOS"]).round(2) if 'JOGOS' in stats_df and stats_df['JOGOS'].sum() > 0 else 0

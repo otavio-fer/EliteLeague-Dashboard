@@ -1,4 +1,4 @@
-# pages/3_analise.py (Atualizado para Múltiplas Ligas)
+# pages/3_analise.py (Corrigido com a legenda restaurada)
 
 import dash
 from dash import dcc, html, callback, Input, Output
@@ -10,7 +10,8 @@ from data_store import data, cores_times, cor_padrao, logo_mapping
 
 dash.register_page(__name__, name='Análise Detalhada')
 
-# --- Legenda de Estatísticas (sem alteração) ---
+# <<<<<<<<<<<<<<< LEGENDA COMPLETA RESTAURADA AQUI >>>>>>>>>>>>>>>
+# --- Legenda de Estatísticas ---
 legenda_accordion = dbc.Accordion([
     dbc.AccordionItem("PPG (Pontos por Jogo): Média de pontos que um jogador marca por partida.", title="PPG"),
     dbc.AccordionItem("RPG (Rebotes por Jogo): Média de rebotes que um jogador pega por partida.", title="RPG"),
@@ -54,25 +55,17 @@ def layout():
 def update_analysis_dropdowns(league):
     league_data = data.get(league, {})
     
-    # Opções de Jogadores
     df_jogadores = league_data.get('df_analise_completo', pd.DataFrame())
-    if not df_jogadores.empty:
-        player_options = [{'label': apelido, 'value': apelido} for apelido in sorted(df_jogadores['APELIDO'].unique())]
-        player_value = player_options[0]['value'] if player_options else None
-    else:
-        player_options, player_value = [], None
+    player_options = [{'label': apelido, 'value': apelido} for apelido in sorted(df_jogadores['APELIDO'].unique())] if not df_jogadores.empty else []
+    player_value = player_options[0]['value'] if player_options else None
         
-    # Opções de Equipes
     df_equipes = league_data.get('dfs', {}).get('analise_equipes', pd.DataFrame())
-    if not df_equipes.empty:
-        team_options = [{'label': equipe, 'value': equipe} for equipe in sorted(df_equipes['EQUIPE'].unique())]
-        team_value = team_options[0]['value'] if team_options else None
-    else:
-        team_options, team_value = [], None
+    team_options = [{'label': equipe, 'value': equipe} for equipe in sorted(df_equipes['EQUIPE'].unique())] if not df_equipes.empty else []
+    team_value = team_options[0]['value'] if team_options else None
         
     return player_options, player_value, team_options, team_value
 
-# --- Callbacks de Análise (agora também "escutam" a liga) ---
+# --- Callbacks de Análise ---
 @callback(
     Output('player-stat-cards', 'children'),
     Output('shooting-progress-bars', 'children'),
@@ -80,8 +73,7 @@ def update_analysis_dropdowns(league):
     Input('league-store', 'data')
 )
 def update_player_analysis(selected_player, league):
-    if not selected_player or not league:
-        return [], []
+    if not selected_player or not league: return [], []
         
     df_analise = data[league]['df_analise_completo']
     player_data = df_analise[df_analise['APELIDO'] == selected_player].iloc[0]
@@ -103,6 +95,18 @@ def update_player_analysis(selected_player, league):
                 ], className="text-center"), style={**card_style, 'borderTopColor': colors[i]}), 
                 lg=3, md=4, sm=6, className="mb-4") for i, (stat, (value, icon)) in enumerate(stats_to_show.items())]
 
+    player_function = player_data.get('FUNCAO', 'Indefinido')
+    function_icon = "bi-star-fill" if player_function == 'Titular' else "bi-person-video3"
+    function_card = dbc.Col(dbc.Card(dbc.CardBody([
+                    html.Div([
+                        html.I(className=f"{function_icon} fs-1", style={'color': '#fd7e14'}),
+                        html.H2(player_function, className="fw-bolder my-2"),
+                        html.P("Função Principal", className="text-muted mb-0 fw-bold")
+                    ])
+                ], className="text-center"), style={**card_style, 'borderTopColor': '#fd7e14'}), 
+                lg=3, md=4, sm=6, className="mb-4")
+    stat_cards.append(function_card)
+
     shooting_stats = {"FG%": player_data['%FG']*100, "2P%": player_data['%2P']*100, "3P%": player_data['%3P']*100, "FT%": player_data['%FT']*100}
     progress_bars = []
     colors_progress = ["primary", "info", "success", "danger"]
@@ -123,8 +127,7 @@ def update_player_analysis(selected_player, league):
     Input('league-store', 'data')
 )
 def update_team_graphs(selected_team, league):
-    if not selected_team or not league:
-        return [], go.Figure(), ''
+    if not selected_team or not league: return [], go.Figure(), ''
     
     df_equipes = data[league]['dfs']['analise_equipes']
     team_data = df_equipes[df_equipes['EQUIPE'] == selected_team].iloc[0]
@@ -142,9 +145,7 @@ def update_team_graphs(selected_team, league):
                 ], className="text-center"), style={**card_style, 'borderTopColor': color}), 
                 lg=4, md=6, sm=12, className="mb-4") for stat, (value, icon, color) in stats_to_show.items()]
 
-    pontos_2 = team_data.get('2PM', 0) * 2
-    pontos_3 = team_data.get('3PM', 0) * 3
-    pontos_ll = team_data.get('FTM', 0)
+    pontos_2, pontos_3, pontos_ll = team_data.get('2PM', 0) * 2, team_data.get('3PM', 0) * 3, team_data.get('FTM', 0)
     composition_data = {'Tipo': ['Pontos de 2', 'Pontos de 3', 'Lances Livres'], 'Pontos': [pontos_2, pontos_3, pontos_ll]}
     fig_composition_team = px.pie(composition_data, names='Tipo', values='Pontos', title="Composição da Pontuação", hole=0.5, template="plotly_dark", color_discrete_sequence=[cor_time, '#636E72', '#B2BEC3'])
     fig_composition_team.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="white", legend_title_text='', showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
