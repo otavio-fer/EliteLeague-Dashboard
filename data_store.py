@@ -1,4 +1,4 @@
-# data_store.py 
+# data_store.py (Atualizado com cálculo de %FG)
 
 import pandas as pd
 import sys
@@ -16,11 +16,9 @@ def process_league_data(filename, league_type):
         }
         dfs = {name: pd.read_excel(filename, sheet_name=sheet) for name, sheet in sheet_names.items()}
 
-        # Renomeia colunas ANTES de qualquer processamento
         for df_name in ["analise_jogadores", "analise_equipes"]:
             dfs[df_name].rename(columns={'# RPG': 'RPG', '#APG': 'APG', 'PPJ': 'PPG'}, inplace=True)
 
-        # Lista de colunas que devem ser numéricas
         numeric_cols = [
             'JOGOS', 'PONTOS', 'PPG', 'FGM', 'FGA', '%FG', '2PM', '2PA', '%2P', 
             '3PM', '3PA', '%3P', 'FTM', 'FTA', '%FT', 'REB O', 'REB D', 
@@ -28,7 +26,6 @@ def process_league_data(filename, league_type):
             'FALTAS C', 'FALTAS S', 'PLUS/MINUS', 'EFICIÊNCIA'
         ]
         
-        # Limpa e converte os dados para numérico em todos os DataFrames relevantes
         for df_name in dfs:
             for col in numeric_cols:
                 if col in dfs[df_name].columns:
@@ -43,8 +40,11 @@ def process_league_data(filename, league_type):
         df_analise['APELIDO'] = df_analise['APELIDO'].replace({
             'MBAPPE LUS': 'MBAPPE', 'CIANETO LUS': 'CIANETO', 'SCOOBY LUS': 'SCOOBY'
         })
-        
-        # <<<<<<<<<<<<<<< INÍCIO DA NOVA LÓGICA >>>>>>>>>>>>>>>
+
+        # <<<<<<<<<<<<<<< CÁLCULO DE %FG ADICIONADO AQUI >>>>>>>>>>>>>>>
+        if 'FGM' in df_analise.columns and 'FGA' in df_analise.columns:
+            df_analise['%FG'] = df_analise.apply(lambda row: row['FGM'] / row['FGA'] if row['FGA'] > 0 else 0, axis=1)
+
         df_status_raw = dfs["ranking_jogadores"]
         if not df_status_raw.empty and 'APELIDO' in df_status_raw.columns and 'STATUS' in df_status_raw.columns:
             status_counts = df_status_raw.groupby(['APELIDO', 'STATUS']).size().unstack(fill_value=0)
@@ -53,10 +53,8 @@ def process_league_data(filename, league_type):
                 axis=1
             )
             player_function = status_counts[['FUNCAO']]
-            # Adiciona a função ao DataFrame principal de análise
             dfs["analise_jogadores"] = dfs["analise_jogadores"].merge(player_function, on='APELIDO', how='left')
             dfs["analise_jogadores"]['FUNCAO'].fillna('Indefinido', inplace=True)
-        # <<<<<<<<<<<<<<< FIM DA NOVA LÓGICA >>>>>>>>>>>>>>>
         
         stats_df = dfs["analise_jogadores"]
         stats_df["ROUB_PG"] = (stats_df["ROUB"] / stats_df["JOGOS"]).round(2) if 'JOGOS' in stats_df and stats_df['JOGOS'].sum() > 0 else 0

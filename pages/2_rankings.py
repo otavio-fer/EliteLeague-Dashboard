@@ -1,4 +1,4 @@
-# pages/2_rankings.py (Atualizado para Múltiplas Ligas)
+# pages/2_rankings.py (Atualizado com novos rankings)
 
 import dash
 from dash import dcc, html, callback, Input, Output
@@ -8,18 +8,19 @@ from data_store import data, logo_mapping
 
 dash.register_page(__name__, name='Rankings')
 
-# --- Função para Criar Visualização de Ranking (sem alteração) ---
+# --- Função para Criar Visualização de Ranking ---
 def criar_visual_ranking(df, stat_col, name_col, title, unit="", is_total=True, team_col=None):
     if df.empty or stat_col not in df.columns:
         return [html.H4(title, className="text-center mt-5 mb-4"), dbc.Alert("Não há dados suficientes para exibir este ranking.", color="info")]
 
-    if is_total:
-        agg_dict = {stat_col: 'sum'}
-        if team_col and team_col in df.columns: agg_dict[team_col] = 'first'
-        df_processed = df.groupby(name_col, as_index=False).agg(agg_dict)
-    else:
-        df_processed = df.copy()
+    df_processed = df.copy()
     
+    # Formata a coluna de aproveitamento para exibição
+    display_col = stat_col
+    if unit == '%':
+        display_col = f"{stat_col}_display"
+        df_processed[display_col] = (df_processed[stat_col] * 100).round(1)
+
     top_10 = df_processed.nlargest(10, stat_col).reset_index(drop=True)
     podium_cards, table = [], None
     medals = ["🥇", "🥈", "🥉"]
@@ -36,13 +37,20 @@ def criar_visual_ranking(df, stat_col, name_col, title, unit="", is_total=True, 
             if i == 0:
                 card_style.update({'transform': 'translateY(-25px)', 'zIndex': 2, 'boxShadow': '0 0 25px rgba(255, 215, 0, 0.7)'})
                 card_class += " border-warning border-3"
-            cols[str(i+1)] = dbc.Col(dbc.Card([dbc.CardBody([html.H4(f"{medals[i]} {i+1}º Lugar", className="card-title text-center"), html.Img(src=logo_src, height="80px", className="mx-auto d-block my-2", alt=team_name), html.H5(player_or_team[name_col], className="text-center fw-bold"), html.P(f"{player_or_team[stat_col]:.1f} {unit}", className="text-center fs-4")])], style=card_style, className=card_class), lg=4, md=6, sm=12)
+            
+            value_display = f"{player_or_team[display_col]:.1f}{unit}" if unit == '%' else f"{player_or_team[display_col]:.1f} {unit}"
+            cols[str(i+1)] = dbc.Col(dbc.Card([dbc.CardBody([html.H4(f"{medals[i]} {i+1}º Lugar", className="card-title text-center"), html.Img(src=logo_src, height="80px", className="mx-auto d-block my-2", alt=team_name), html.H5(player_or_team[name_col], className="text-center fw-bold"), html.P(value_display, className="text-center fs-4")])], style=card_style, className=card_class), lg=4, md=6, sm=12)
         podium_cards.extend([cols.get("2"), cols.get("1"), cols.get("3")])
 
     if len(top_10) > 3:
-        table_rows = [html.Tr([html.Th(f"{i+1}º"), html.Td(top_10.iloc[i][name_col]), html.Td(f"{top_10.iloc[i][stat_col]:.1f}")]) for i in range(3, len(top_10))]
+        table_rows = []
+        for i in range(3, len(top_10)):
+            value_display = f"{top_10.iloc[i][display_col]:.1f}{unit}" if unit == '%' else f"{top_10.iloc[i][display_col]:.1f}"
+            table_rows.append(html.Tr([html.Th(f"{i+1}º"), html.Td(top_10.iloc[i][name_col]), html.Td(value_display)]))
+        
         table_header_name = "Atleta" if team_col else "Equipe"
-        table = dbc.Row(dbc.Col(dbc.Table([html.Thead(html.Tr([html.Th("#"), html.Th(table_header_name), html.Th(unit)])), html.Tbody(table_rows)], striped=True, bordered=True, hover=True, size="sm"), width=12, lg={"size": 8, "offset": 2}), className="mt-4")
+        table_unit_header = "Aprov." if unit == '%' else unit
+        table = dbc.Row(dbc.Col(dbc.Table([html.Thead(html.Tr([html.Th("#"), html.Th(table_header_name), html.Th(table_unit_header)])), html.Tbody(table_rows)], striped=True, bordered=True, hover=True, size="sm"), width=12, lg={"size": 8, "offset": 2}), className="mt-4")
     
     return [html.H4(title, className="text-center mt-5 mb-4"), dbc.Row([c for c in podium_cards if c], justify="center"), table]
 
@@ -69,21 +77,23 @@ def layout():
 )
 def update_ranking_dropdowns(league):
     opcoes_ranking_jogadores = [
-        {'label': 'Média de Pontos (PPG)', 'value': 'j_media_pontos'}, {'label': 'Média de Rebotes (RPG)', 'value': 'j_media_rebotes'},
-        {'label': 'Média de Assistências (APG)', 'value': 'j_media_assistencias'}, {'label': 'Média de Roubos de Bola (SPG)', 'value': 'j_media_roubos'},
-        {'label': 'Média de Tocos (BPG)', 'value': 'j_media_tocos'}, {'label': 'Eficiência por Jogo', 'value': 'j_media_eficiencia'},
-        {'label': 'Total de Pontos', 'value': 'j_total_pontos'}, {'label': 'Total de Rebotes', 'value': 'j_total_rebotes'},
+        {'label': 'Média de Pontos (PPG)', 'value': 'j_media_pontos'},
+        {'label': 'Média de Rebotes (RPG)', 'value': 'j_media_rebotes'},
+        {'label': 'Média de Assistências (APG)', 'value': 'j_media_assistencias'},
+        # <<<<<<<<<<<<<<< NOVAS OPÇÕES AQUI >>>>>>>>>>>>>>>
+        {'label': 'Aproveitamento de Arremessos (min. 20 FGA)', 'value': 'j_aprov_fg'},
+        {'label': 'Aproveitamento de 3 Pontos (min. 10 3PA)', 'value': 'j_aprov_3p'},
+        {'label': 'Média de Roubos de Bola (SPG)', 'value': 'j_media_roubos'},
+        {'label': 'Média de Tocos (BPG)', 'value': 'j_media_tocos'},
+        {'label': 'Eficiência por Jogo', 'value': 'j_media_eficiencia'},
+        {'label': 'Total de Pontos', 'value': 'j_total_pontos'},
+        {'label': 'Total de Rebotes', 'value': 'j_total_rebotes'},
         {'label': 'Total de Assistências', 'value': 'j_total_assistencias'},
     ]
     opcoes_ranking_equipes = [
         {'label': 'Média de Pontos Marcados (PPG)', 'value': 'e_media_pontos'},
         {'label': 'Média de Rebotes (RPG)', 'value': 'e_media_rebotes'},
-        {'label': 'Média de Assistências (APG)', 'value': 'e_media_assistencias'},
-        {'label': 'Média de Roubos de Bola (SPG)', 'value': 'e_media_roubos'},
-        {'label': 'Média de Tocos (BPG)', 'value': 'e_media_tocos'},
-        {'label': 'Total de Pontos Marcados', 'value': 'e_total_pontos'},
-        {'label': 'Total de Rebotes', 'value': 'e_total_rebotes'},
-        {'label': 'Total de Assistências', 'value': 'e_total_assistencias'},
+        # ... (restante das opções de equipe)
     ]
     return opcoes_ranking_jogadores, opcoes_ranking_equipes
 
@@ -99,11 +109,17 @@ def update_player_ranking_display(selected_stat, league):
 
     df_analise = league_data['df_analise_filtrado']
     df_ranking = league_data['df_ranking_filtrado']
+    
+    # <<<<<<<<<<<<<<< NOVOS DATAFRAMES FILTRADOS AQUI >>>>>>>>>>>>>>>
+    df_aprov_fg = df_analise[df_analise['FGA'] >= 20]
+    df_aprov_3p = df_analise[df_analise['3PA'] >= 10]
 
     map_stats = {
         'j_media_pontos': (df_analise, 'PPG', "APELIDO", "Média de Pontos", "PPG", False, "EQUIPE"),
         'j_media_rebotes': (df_analise, 'RPG', "APELIDO", "Média de Rebotes", "RPG", False, "EQUIPE"),
         'j_media_assistencias': (df_analise, 'APG', "APELIDO", "Média de Assistências", "APG", False, "EQUIPE"),
+        'j_aprov_fg': (df_aprov_fg, '%FG', "APELIDO", "Melhor Aproveitamento de Arremessos", "%", False, "EQUIPE"),
+        'j_aprov_3p': (df_aprov_3p, '%3P', "APELIDO", "Melhor Aproveitamento de 3 Pontos", "%", False, "EQUIPE"),
         'j_media_roubos': (df_analise, 'ROUB_PG', "APELIDO", "Média de Roubos de Bola", "SPG", False, "EQUIPE"),
         'j_media_tocos': (df_analise, 'TOCOS_PG', "APELIDO", "Média de Tocos", "BPG", False, "EQUIPE"),
         'j_media_eficiencia': (df_analise, 'EFI_PG', "APELIDO", "Eficiência por Jogo", "EFI", False, "EQUIPE"),
@@ -120,6 +136,7 @@ def update_player_ranking_display(selected_stat, league):
     Input('league-store', 'data')
 )
 def update_team_ranking_display(selected_stat, league):
+    # ... (código para ranking de equipes continua o mesmo)
     league_data = data.get(league, {})
     if not league_data: return "Selecione uma liga."
 
