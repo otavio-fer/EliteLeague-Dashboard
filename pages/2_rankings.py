@@ -1,4 +1,4 @@
-# pages/2_rankings.py (Atualizado com novos rankings)
+# pages/2_rankings.py (Corrigido com todas as opções de ranking)
 
 import dash
 from dash import dcc, html, callback, Input, Output
@@ -15,7 +15,6 @@ def criar_visual_ranking(df, stat_col, name_col, title, unit="", is_total=True, 
 
     df_processed = df.copy()
     
-    # Formata a coluna de aproveitamento para exibição
     display_col = stat_col
     if unit == '%':
         display_col = f"{stat_col}_display"
@@ -80,7 +79,6 @@ def update_ranking_dropdowns(league):
         {'label': 'Média de Pontos (PPG)', 'value': 'j_media_pontos'},
         {'label': 'Média de Rebotes (RPG)', 'value': 'j_media_rebotes'},
         {'label': 'Média de Assistências (APG)', 'value': 'j_media_assistencias'},
-        # <<<<<<<<<<<<<<< NOVAS OPÇÕES AQUI >>>>>>>>>>>>>>>
         {'label': 'Aproveitamento de Arremessos (min. 20 FGA)', 'value': 'j_aprov_fg'},
         {'label': 'Aproveitamento de 3 Pontos (min. 10 3PA)', 'value': 'j_aprov_3p'},
         {'label': 'Média de Roubos de Bola (SPG)', 'value': 'j_media_roubos'},
@@ -90,10 +88,16 @@ def update_ranking_dropdowns(league):
         {'label': 'Total de Rebotes', 'value': 'j_total_rebotes'},
         {'label': 'Total de Assistências', 'value': 'j_total_assistencias'},
     ]
+    # <<<<<<<<<<<<<<< LISTA COMPLETA RESTAURADA AQUI >>>>>>>>>>>>>>>
     opcoes_ranking_equipes = [
         {'label': 'Média de Pontos Marcados (PPG)', 'value': 'e_media_pontos'},
         {'label': 'Média de Rebotes (RPG)', 'value': 'e_media_rebotes'},
-        # ... (restante das opções de equipe)
+        {'label': 'Média de Assistências (APG)', 'value': 'e_media_assistencias'},
+        {'label': 'Média de Roubos de Bola (SPG)', 'value': 'e_media_roubos'},
+        {'label': 'Média de Tocos (BPG)', 'value': 'e_media_tocos'},
+        {'label': 'Total de Pontos Marcados', 'value': 'e_total_pontos'},
+        {'label': 'Total de Rebotes', 'value': 'e_total_rebotes'},
+        {'label': 'Total de Assistências', 'value': 'e_total_assistencias'},
     ]
     return opcoes_ranking_jogadores, opcoes_ranking_equipes
 
@@ -110,7 +114,6 @@ def update_player_ranking_display(selected_stat, league):
     df_analise = league_data['df_analise_filtrado']
     df_ranking = league_data['df_ranking_filtrado']
     
-    # <<<<<<<<<<<<<<< NOVOS DATAFRAMES FILTRADOS AQUI >>>>>>>>>>>>>>>
     df_aprov_fg = df_analise[df_analise['FGA'] >= 20]
     df_aprov_3p = df_analise[df_analise['3PA'] >= 10]
 
@@ -136,7 +139,6 @@ def update_player_ranking_display(selected_stat, league):
     Input('league-store', 'data')
 )
 def update_team_ranking_display(selected_stat, league):
-    # ... (código para ranking de equipes continua o mesmo)
     league_data = data.get(league, {})
     if not league_data: return "Selecione uma liga."
 
