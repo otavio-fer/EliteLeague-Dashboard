@@ -104,7 +104,7 @@ def process_league_data(filename, league_type):
             df_premios['V%'] * win_pct_weight
         )
 
-        df_premios['DEF_SCORE'] = (df_premios['ROUB_PG']*1.5 + df_premios['TOCOS_PG']*1.5 + df_premios['RPG']*1.0)
+        df_premios['DEF_SCORE'] = (df_premios['ROUB_PG']*1.5 + df_premios['TOCOS_PG']*1.5 + df_premios['RPG']*0.5)
 
         mvp_max, mvp_min = df_premios['MVP_SCORE'].max(), df_premios['MVP_SCORE'].min()
         def_max, def_min = df_premios['DEF_SCORE'].max(), df_premios['DEF_SCORE'].min()
