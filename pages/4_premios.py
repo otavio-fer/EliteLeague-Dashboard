@@ -1,4 +1,4 @@
-# pages/4_premios.py (Atualizado para Múltiplas Ligas)
+# pages/4_premios.py (Atualizado para Múltiplas Ligas e Top 15 MVP)
 
 import dash
 from dash import dcc, html, callback, Input, Output
@@ -46,11 +46,13 @@ def criar_quadra_all_team(df_team, title):
     )
     return dbc.Card([dbc.CardBody(dcc.Graph(figure=fig))])
 
-def create_candidates_view(df, stat_col, name_col, title, explanation_text, team_col=None):
+# <<<<<<<<<<<<<<< ALTERAÇÃO AQUI (num_to_show=10) >>>>>>>>>>>>>>>
+def create_candidates_view(df, stat_col, name_col, title, explanation_text, team_col=None, num_to_show=10):
     if df.empty or stat_col not in df.columns:
         return [html.H4(title, className="text-center mt-5 mb-4"), dbc.Alert("Não há dados suficientes para esta categoria.", color="info")]
 
-    top_10 = df.nlargest(10, stat_col)
+    # <<<<<<<<<<<<<<< ALTERAÇÃO AQUI (top_n e num_to_show) >>>>>>>>>>>>>>>
+    top_n = df.nlargest(num_to_show, stat_col)
     
     explanation = html.P(explanation_text, className="text-center text-white-50 mb-4")
     
@@ -63,7 +65,8 @@ def create_candidates_view(df, stat_col, name_col, title, explanation_text, team
                     html.Small(player[team_col], className="text-muted"),
                 ], className="d-flex flex-column"),
             ], className="d-flex align-items-center")
-        ) for _, player in top_10.iterrows()], flush=True
+        # <<<<<<<<<<<<<<< ALTERAÇÃO AQUI (top_n) >>>>>>>>>>>>>>>
+        ) for _, player in top_n.iterrows()], flush=True
     )
     
     return [
@@ -115,8 +118,10 @@ def update_award_ranking_display(selected_award, league):
     dpoy_explanation = ("A corrida para Defensor(a) do Ano avalia o impacto de um jogador na defesa. São considerados principalmente os roubos de bola, tocos e a capacidade de pegar rebotes. Os jogadores abaixo demonstraram excelência defensiva ao longo da temporada.")
 
     if selected_award == 'mvp':
-        return create_candidates_view(df_analise, 'MVP_SCORE', "APELIDO", "Corrida para MVP", mvp_explanation, team_col="EQUIPE")
+        # <<<<<<<<<<<<<<< ALTERAÇÃO AQUI (num_to_show=15) >>>>>>>>>>>>>>>
+        return create_candidates_view(df_analise, 'MVP_SCORE', "APELIDO", "Corrida para MVP", mvp_explanation, team_col="EQUIPE", num_to_show=15)
     elif selected_award == 'dpoy':
+        # (Mantido o padrão de 10)
         return create_candidates_view(df_analise, 'DEF_SCORE', "APELIDO", "Corrida para Defensor(a) do Ano", dpoy_explanation, team_col="EQUIPE")
     elif selected_award == 'all_team_1':
         primeiro_time = df_sorted.head(5)

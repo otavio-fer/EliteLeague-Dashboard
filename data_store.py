@@ -1,4 +1,4 @@
-# data_store.py (Corrigido com peso do V% ajustado para 3 no feminino)
+# data_store.py (Corrigido com mínimo de 4 jogos para masculino)
 
 import pandas as pd
 import sys
@@ -70,7 +70,10 @@ def process_league_data(filename, league_type):
         dfs["ranking_equipes"].drop(dfs["ranking_equipes"][dfs["ranking_equipes"]['EQUIPE'] == 'TOTAIS'].index, inplace=True, errors='ignore')
 
         df_analise_completo = dfs["analise_jogadores"].copy()
-        min_jogos_geral = 2
+        
+        # <<<<<<<<<<<<<<< ALTERAÇÃO DO MÍNIMO DE JOGOS AQUI >>>>>>>>>>>>>>>
+        min_jogos_geral = 4 if league_type == 'M' else 2
+        
         jogadores_elegiveis = df_analise_completo[df_analise_completo['JOGOS'] >= min_jogos_geral]['APELIDO']
         df_analise_filtrado = df_analise_completo[df_analise_completo['APELIDO'].isin(jogadores_elegiveis)].copy()
         df_ranking_filtrado = dfs["ranking_jogadores"][dfs["ranking_jogadores"]['APELIDO'].isin(jogadores_elegiveis)].copy()
@@ -109,7 +112,9 @@ def process_league_data(filename, league_type):
         df_premios['DEF_NORM'] = (df_premios['DEF_SCORE'] - def_min) / (def_max - def_min) if (def_max - def_min) > 0 else 0
         df_premios['ALL_TEAM_SCORE'] = df_premios['MVP_NORM'] + df_premios['DEF_NORM']
 
-        min_jogos_premios = 2
+        # <<<<<<<<<<<<<<< ALTERAÇÃO DO MÍNIMO DE JOGOS AQUI >>>>>>>>>>>>>>>
+        min_jogos_premios = 4 if league_type == 'M' else 2
+        
         jogadores_elegiveis_premios = df_premios[df_premios['JOGOS'] >= min_jogos_premios]['APELIDO']
         df_analise_premios_filtrado = df_premios[df_premios['APELIDO'].isin(jogadores_elegiveis_premios)].copy()
 
