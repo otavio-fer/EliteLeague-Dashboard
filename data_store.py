@@ -1,9 +1,10 @@
-# data_store.py (Corrigido com mínimo de 4 jogos para masculino)
+# data_store.py (Atualizado com Calouro/Sexto Homem e 4 jogos min. Masc.)
 
 import pandas as pd
 import sys
 
-def process_league_data(filename, league_type):
+# <<<<<<<<<<<<<<< ALTERAÇÃO DA ASSINATURA DA FUNÇÃO >>>>>>>>>>>>>>>
+def process_league_data(stats_filename, lista_atletas_filename, league_type):
     try:
         sheet_names = {
             "analise_jogadores": "2K25 ELITE LEAGUE",
@@ -11,7 +12,23 @@ def process_league_data(filename, league_type):
             "ranking_jogadores": "ESTATÍSTICAS ATLETAS",
             "ranking_equipes": "ESTATÍSTICAS EQUIPES"
         }
-        dfs = {name: pd.read_excel(filename, sheet_name=sheet) for name, sheet in sheet_names.items()}
+        dfs = {name: pd.read_excel(stats_filename, sheet_name=sheet) for name, sheet in sheet_names.items()}
+        
+        # <<<<<<<<<<<<<<< CARREGA LISTA DE ATLETAS (PARA 'ANO') >>>>>>>>>>>>>>>
+        try:
+            df_lista_atletas = pd.read_csv(lista_atletas_filename)
+            # Garante que APELIDO e ANO existam e estejam limpos
+            if 'APELIDO' not in df_lista_atletas.columns:
+                 df_lista_atletas['APELIDO'] = df_lista_atletas.get('NOME', pd.Series(dtype='str'))
+                 
+            df_lista_atletas = df_lista_atletas[['APELIDO', 'ANO']].copy()
+            df_lista_atletas['APELIDO'] = df_lista_atletas['APELIDO'].str.strip()
+            df_lista_atletas['ANO'] = pd.to_numeric(df_lista_atletas['ANO'], errors='coerce').fillna(99) # 99 = Ano indefinido
+        except Exception as e:
+            print(f"ERRO AO LER LISTA DE ATLETAS {lista_atletas_filename}: {e}", file=sys.stderr)
+            df_lista_atletas = pd.DataFrame(columns=['APELIDO', 'ANO'])
+        # <<<<<<<<<<<<<<< FIM DA LEITURA CSV >>>>>>>>>>>>>>>
+
 
         for df_name in dfs:
             if 'EQUIPE' in dfs[df_name].columns:
@@ -79,6 +96,10 @@ def process_league_data(filename, league_type):
         df_ranking_filtrado = dfs["ranking_jogadores"][dfs["ranking_jogadores"]['APELIDO'].isin(jogadores_elegiveis)].copy()
 
         df_premios = df_analise_completo.copy()
+        
+        # <<<<<<<<<<<<<<< MERGE COM DADOS DE 'ANO' >>>>>>>>>>>>>>>
+        df_premios = df_premios.merge(df_lista_atletas[['APELIDO', 'ANO']], on='APELIDO', how='left')
+        df_premios['ANO'].fillna(99, inplace=True) # 99 = Ano indefinido
 
         if league_type == 'M':
             indices_serasa = df_premios[(df_premios['APELIDO'] == 'SERASA') & (df_premios['EQUIPE'] == 'MED USP RP')].index
@@ -93,8 +114,7 @@ def process_league_data(filename, league_type):
 
         df_premios['V%'] = df_premios['EQUIPE'].map(team_win_pct).fillna(0)
 
-        # <<<<<<<<<<<<<<< ALTERAÇÃO DA FÓRMULA AQUI >>>>>>>>>>>>>>>
-        win_pct_weight = 3 if league_type == 'W' else 20
+        win_pct_weight = 3 if league_type == 'W' else 10
 
         df_premios['MVP_SCORE'] = (
             df_premios['EFI_PG']*1.0 +
@@ -102,6 +122,14 @@ def process_league_data(filename, league_type):
             df_premios['APG']*0.7 +
             df_premios['RPG']*0.4 +
             df_premios['V%'] * win_pct_weight
+        )
+        
+        # <<<<<<<<<<<<<<< NOVA PONTUAÇÃO (SEM V%) >>>>>>>>>>>>>>>
+        df_premios['NEW_AWARD_SCORE'] = (
+            df_premios['EFI_PG']*1.0 +
+            df_premios['PPG']*0.8 +
+            df_premios['APG']*0.7 +
+            df_premios['RPG']*0.4
         )
 
         df_premios['DEF_SCORE'] = (df_premios['ROUB_PG']*1.5 + df_premios['TOCOS_PG']*1.5 + df_premios['RPG']*0.5)
@@ -118,21 +146,34 @@ def process_league_data(filename, league_type):
         jogadores_elegiveis_premios = df_premios[df_premios['JOGOS'] >= min_jogos_premios]['APELIDO']
         df_analise_premios_filtrado = df_premios[df_premios['APELIDO'].isin(jogadores_elegiveis_premios)].copy()
 
+        # <<<<<<<<<<<<<<< NOVOS DATAFRAMES FILTRADOS >>>>>>>>>>>>>>>
+        df_calouros = df_premios[df_premios['ANO'] == 1].copy()
+        df_calouros_filtrado = df_calouros[df_calouros['APELIDO'].isin(jogadores_elegiveis_premios)].copy()
+
+        df_sexto_homem = df_premios[df_premios['FUNCAO'] == 'Reserva'].copy()
+        df_sexto_homem_filtrado = df_sexto_homem[df_sexto_homem['APELIDO'].isin(jogadores_elegiveis_premios)].copy()
+        # <<<<<<<<<<<<<<< FIM DOS NOVOS DATAFRAMES >>>>>>>>>>>>>>>
+
         return {
             "dfs": dfs, "df_analise_completo": df_analise_completo, "df_analise_filtrado": df_analise_filtrado,
-            "df_ranking_filtrado": df_ranking_filtrado, "df_analise_premios_filtrado": df_analise_premios_filtrado
+            "df_ranking_filtrado": df_ranking_filtrado, "df_analise_premios_filtrado": df_analise_premios_filtrado,
+            # <<<<<<<<<<<<<<< NOVOS ITENS RETORNADOS >>>>>>>>>>>>>>>
+            "df_calouros_filtrado": df_calouros_filtrado,
+            "df_sexto_homem_filtrado": df_sexto_homem_filtrado
         }
 
     except Exception as e:
-        print(f"ERRO AO PROCESSAR O ARQUIVO {filename}: {e}", file=sys.stderr)
+        print(f"ERRO AO PROCESSAR O ARQUIVO {stats_filename}: {e}", file=sys.stderr)
         return {
             "dfs": {}, "df_analise_completo": pd.DataFrame(), "df_analise_filtrado": pd.DataFrame(),
-            "df_ranking_filtrado": pd.DataFrame(), "df_analise_premios_filtrado": pd.DataFrame()
+            "df_ranking_filtrado": pd.DataFrame(), "df_analise_premios_filtrado": pd.DataFrame(),
+            "df_calouros_filtrado": pd.DataFrame(), "df_sexto_homem_filtrado": pd.DataFrame()
         }
 
+# <<<<<<<<<<<<<<< ALTERAÇÃO NAS CHAMADAS DA FUNÇÃO >>>>>>>>>>>>>>>
 data = {
-    'M': process_league_data('ESTATÍSTICAS.xlsx', 'M'),
-    'W': process_league_data('W ELITE LEAGUE ESTATÍSTICAS.xlsx', 'W')
+    'M': process_league_data('ESTATÍSTICAS.xlsx', 'ESTATÍSTICAS.xlsx - LISTA DE ATLETAS.csv', 'M'),
+    'W': process_league_data('W ELITE LEAGUE ESTATÍSTICAS.xlsx', 'W ELITE LEAGUE ESTATÍSTICAS.xlsx - LISTA DE ATLETAS.csv', 'W')
 }
 
 logo_mapping = {

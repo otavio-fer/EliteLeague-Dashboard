@@ -1,4 +1,4 @@
-# pages/4_premios.py (Atualizado para Múltiplas Ligas e Top 15 MVP)
+# pages/4_premios.py (Atualizado com Calouro/Sexto Homem e Top 15 MVP)
 
 import dash
 from dash import dcc, html, callback, Input, Output
@@ -46,12 +46,10 @@ def criar_quadra_all_team(df_team, title):
     )
     return dbc.Card([dbc.CardBody(dcc.Graph(figure=fig))])
 
-# <<<<<<<<<<<<<<< ALTERAÇÃO AQUI (num_to_show=10) >>>>>>>>>>>>>>>
 def create_candidates_view(df, stat_col, name_col, title, explanation_text, team_col=None, num_to_show=10):
     if df.empty or stat_col not in df.columns:
         return [html.H4(title, className="text-center mt-5 mb-4"), dbc.Alert("Não há dados suficientes para esta categoria.", color="info")]
 
-    # <<<<<<<<<<<<<<< ALTERAÇÃO AQUI (top_n e num_to_show) >>>>>>>>>>>>>>>
     top_n = df.nlargest(num_to_show, stat_col)
     
     explanation = html.P(explanation_text, className="text-center text-white-50 mb-4")
@@ -65,7 +63,6 @@ def create_candidates_view(df, stat_col, name_col, title, explanation_text, team
                     html.Small(player[team_col], className="text-muted"),
                 ], className="d-flex flex-column"),
             ], className="d-flex align-items-center")
-        # <<<<<<<<<<<<<<< ALTERAÇÃO AQUI (top_n) >>>>>>>>>>>>>>>
         ) for _, player in top_n.iterrows()], flush=True
     )
     
@@ -89,9 +86,12 @@ def layout():
     Input('league-store', 'data')
 )
 def update_awards_dropdown(league):
+    # <<<<<<<<<<<<<<< NOVAS OPÇÕES ADICIONADAS AQUI >>>>>>>>>>>>>>>
     opcoes_premios = [
         {'label': 'Corrida para MVP', 'value': 'mvp'},
         {'label': 'Defensor(a) do Ano', 'value': 'dpoy'},
+        {'label': 'Calouro(a) do Ano', 'value': 'calouro'},
+        {'label': 'Sexto(a) Homem do Ano', 'value': 'sexto_homem'},
         {'label': 'Corrida para o 1º Time Ideal', 'value': 'all_team_1'},
         {'label': 'Corrida para o 2º Time Ideal', 'value': 'all_team_2'},
     ]
@@ -108,6 +108,9 @@ def update_award_ranking_display(selected_award, league):
     if not league_data: return dbc.Alert("Selecione uma liga para ver os prêmios.", color="warning")
 
     df_analise = league_data.get('df_analise_premios_filtrado', pd.DataFrame())
+    # <<<<<<<<<<<<<<< NOVOS DATAFRAMES CARREGADOS >>>>>>>>>>>>>>>
+    df_calouros = league_data.get('df_calouros_filtrado', pd.DataFrame())
+    df_sexto_homem = league_data.get('df_sexto_homem_filtrado', pd.DataFrame())
     
     if df_analise.empty:
         return dbc.Alert("Não há dados de prêmios disponíveis para a liga selecionada.", color="info")
@@ -116,13 +119,20 @@ def update_award_ranking_display(selected_award, league):
     
     mvp_explanation = ("A corrida para MVP é uma avaliação contínua que considera uma combinação de eficiência, estatísticas individuais (pontos, assistências, rebotes) e o desempenho da equipe (porcentagem de vitórias). Os jogadores abaixo são os que mais se destacaram até o momento.")
     dpoy_explanation = ("A corrida para Defensor(a) do Ano avalia o impacto de um jogador na defesa. São considerados principalmente os roubos de bola, tocos e a capacidade de pegar rebotes. Os jogadores abaixo demonstraram excelência defensiva ao longo da temporada.")
+    # <<<<<<<<<<<<<<< NOVAS EXPLICAÇÕES >>>>>>>>>>>>>>>
+    calouro_explanation = ("O prêmio de Calouro(a) do Ano é dado ao(à) jogador(a) de primeiro ano com melhor desempenho, baseado em suas estatísticas individuais (Eficiência, Pontos, Assistências, Rebotes). Mínimo de jogos aplicado.")
+    sexto_homem_explanation = ("O prêmio de Sexto(a) Homem do Ano é dado ao(à) jogador(a) reserva (mais jogos vindo do banco) com melhor desempenho, baseado em suas estatísticas individuais (Eficiência, Pontos, Assistências, Rebotes). Mínimo de jogos aplicado.")
+
 
     if selected_award == 'mvp':
-        # <<<<<<<<<<<<<<< ALTERAÇÃO AQUI (num_to_show=15) >>>>>>>>>>>>>>>
         return create_candidates_view(df_analise, 'MVP_SCORE', "APELIDO", "Corrida para MVP", mvp_explanation, team_col="EQUIPE", num_to_show=15)
     elif selected_award == 'dpoy':
-        # (Mantido o padrão de 10)
         return create_candidates_view(df_analise, 'DEF_SCORE', "APELIDO", "Corrida para Defensor(a) do Ano", dpoy_explanation, team_col="EQUIPE")
+    # <<<<<<<<<<<<<<< NOVOS ELIFS PARA OS PRÊMIOS >>>>>>>>>>>>>>>
+    elif selected_award == 'calouro':
+        return create_candidates_view(df_calouros, 'NEW_AWARD_SCORE', "APELIDO", "Corrida para Calouro(a) do Ano", calouro_explanation, team_col="EQUIPE", num_to_show=3)
+    elif selected_award == 'sexto_homem':
+        return create_candidates_view(df_sexto_homem, 'NEW_AWARD_SCORE', "APELIDO", "Corrida para Sexto(a) Homem do Ano", sexto_homem_explanation, team_col="EQUIPE", num_to_show=3)
     elif selected_award == 'all_team_1':
         primeiro_time = df_sorted.head(5)
         return criar_quadra_all_team(primeiro_time, "Corrida para o 1º Time Ideal da Liga")
